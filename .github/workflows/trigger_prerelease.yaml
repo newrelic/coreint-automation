@@ -4,7 +4,7 @@ name: Trigger pre-release shared workflow
 #
 #  jobs:
 #    "job-name":
-#      uses: newrelic/newrelic-coreint-automation/.github/workflows/trigger_prerelease.yaml@v1
+#      uses: newrelic/coreint-automation/.github/workflows/trigger_prerelease.yaml@v1
 #      with:
 #        bot_token: {{ secret."github_token_name" }}
 #        slack_channel: {{ secret."slack_channel_name" }}
@@ -17,7 +17,7 @@ on:
         description: This endpoint should respond status 200 for the pre-release to continue.
         required: false
         type: string
-        default: https://newrelic.github.io/newrelic-coreint-automation/automatic_release_enable
+        default: https://newrelic.github.io/coreint-automation/automatic_release_enable
     secrets:
       bot_token:
         description: "github token"

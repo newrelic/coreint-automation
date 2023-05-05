@@ -130,7 +130,7 @@ coreint-settings: &coreint-settings
   labels: *labels-common
 
 repos:
-  newrelic/newrelic-coreint-automation: *coreint-settings
+  newrelic/coreint-automation: *coreint-settings
   newrelic/coreint-canaries: *coreint-settings
   newrelic/newrelic-integration-e2e-action: *coreint-settings
   newrelic/newrelic-pcf-nozzle-tile: *coreint-settings
