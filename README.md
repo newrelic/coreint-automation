@@ -1,39 +1,40 @@
 <a href="https://opensource.newrelic.com/oss-category/#community-project"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/dark/Community_Project.png"><source media="(prefers-color-scheme: light)" srcset="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Community_Project.png"><img alt="New Relic Open Source community project banner." src="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Community_Project.png"></picture></a>
 
-# [Name of Project] [build badges go here when available]
+# Core Integrations team automation
 
->[Brief description - what is the project and value does it provide? How often should users expect to get releases? How is versioning set up? Where does this project want to go?]
+This repository acts as a place to put actions automating tasks for the Core Integrations team.
 
-## Installation
+## Deployed actions
 
-> [Include a step-by-step procedure on how to get your code installed. Be sure to include any third-party dependencies that need to be installed separately]
+### Reposettings
 
-## Getting Started
->[Simple steps to start working with the software similar to a "Hello World"]
+Upstream: [roobre/reposettings](https://github.com/roobre/reposettings)
 
-## Usage
->[**Optional** - Include more thorough instructions on how to use the software. This section might not be needed if the Getting Started section is enough. Remove this section if it's not needed.]
+Reposettings reads a YAML file and ensures that repositories match the specified config.
 
+## Shared Workflows
 
-## Building
+### trigger_prerelease
 
->[**Optional** - Include this section if users will need to follow specific instructions to build the software from source. Be sure to include any third party build dependencies that need to be installed separately. Remove this section if it's not needed.]
+Reusable workflow to pre-release. This is used by ohai repos trigger_prerelease workflow
 
-## Testing
+  Usage:
+  ```
+  jobs:
+    your_prerelease_job_name:
+      uses: newrelic/coreint-automation/.github/workflows/trigger_prerelease.yaml@v1
+      secrets:
+        bot_token: 'github token'
+        slack_channel: 'slack channel for sending a message in case of failure'
+        slack_token: 'slack token for sending the above message'
+  ```
+## Automatic releases block endpoint 
 
->[**Optional** - Include instructions on how to run tests if we include tests with the codebase. Remove this section if it's not needed.]
+This repo exposes a github page from the `gh_page` branch containing a file `automatic_release_enable` which is used as a block endpoint.
+Automatic pre-releases executes a GET request to it and fails if the status response is different than 200.
 
-## Support
+The block mechanism can be manually set by manually executing the workflow [Block automatic releases](.github/workflows/block.yaml) and unset by the workflow [Unblock automatic releases](.github/workflows/unblock.yaml) from the Actions panel.
 
-New Relic hosts and moderates an online forum where you can interact with New Relic employees as well as other customers to get help and share best practices. Like all official New Relic open source projects, there's a related Community topic in the New Relic Explorers Hub. You can find this project's topic/threads here:
-
->Add the url for the support thread here: discuss.newrelic.com
-
-## Contribute
-
-We encourage your contributions to improve [project name]! Keep in mind that when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project.
-
-If you have any questions, or to execute our corporate CLA (which is required if your contribution is on behalf of a company), drop us an email at opensource@newrelic.com.
 
 **A note about vulnerabilities**
 
