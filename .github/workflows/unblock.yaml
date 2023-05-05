@@ -1,0 +1,31 @@
+name: Unblock automatic releases
+
+on:
+  workflow_dispatch:
+
+env:
+  UNBLOCK_FILE_NAME: automatic_release_enable
+  BRANCH: gh-pages
+
+jobs:
+  unblock:
+    name: Enable Automatic Releases
+    runs-on: ubuntu-latest
+    permissions:
+      # Allows github.token to push commit
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ env.BRANCH }}
+      - name: Create unblock file
+        run: echo "Removing/renaming this file will block automatic releases." > ${{ env.UNBLOCK_FILE_NAME }}
+      - name: Configure Git
+        run: |
+          git config user.name newrelic-coreint-bot
+          git config user.email coreint-dev@newrelic.com
+      - name: Commit file creation
+        run: |
+          git add ${{ env.UNBLOCK_FILE_NAME }}
+          git commit -m "Allow automatic releases"
+          git push -u origin ${{ inputs.branch }}
