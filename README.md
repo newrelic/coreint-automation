@@ -8,7 +8,7 @@ This repository acts as a place to put actions automating tasks for the Core Int
 
 ### Reposettings
 
-Upstream: [roobre/reposettings](https://github.com/roobre/reposettings)
+Upstream: [txqueuelen/reposettings](https://github.com/txqueuelen/reposettings)
 
 Reposettings reads a YAML file and ensures that repositories match the specified config.
 

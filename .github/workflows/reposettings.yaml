@@ -17,7 +17,7 @@ jobs:
           echo 'REPOSETTINGS_YML<<EOF' >> $GITHUB_ENV
           cat reposettings.yml >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - uses: txqueuelen/reposettings@eae1df5886c9b3a818fc2a8a1ca695d6186ead83
+      - uses: txqueuelen/reposettings@v1
         with:
           github_token: ${{ secrets.COREINT_BOT_TOKEN }}
           config: ${{ env.REPOSETTINGS_YML }}
