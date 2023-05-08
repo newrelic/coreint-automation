@@ -132,9 +132,12 @@ coreint-settings: &coreint-settings
 repos:
   newrelic/coreint-automation: *coreint-settings
   newrelic/coreint-canaries: *coreint-settings
+  newrelic/infrastructure-bundle: *coreint-settings
+  newrelic/integrations-pkg-test-action: *coreint-settings
+  newrelic/newrelic-infra-checkers: *coreint-settings
   newrelic/newrelic-integration-e2e-action: *coreint-settings
   newrelic/newrelic-pcf-nozzle-tile: *coreint-settings
-  newrelic/newrelic-infra-checkers: *coreint-settings
+  newrelic/newrelic-prometheus-exporters-packages : *coreint-settings
   newrelic/nri-apache: *coreint-settings
   newrelic/nri-cassandra: *coreint-settings
   newrelic/nri-consul: *coreint-settings
@@ -161,4 +164,4 @@ repos:
   newrelic/nri-vsphere: *coreint-settings
   newrelic/nri-winservices: *coreint-settings
   newrelic/prometheus-exporter-supervisor: *coreint-settings
-  newrelic/infrastructure-bundle: *coreint-settings
+  newrelic/release-toolkit: *coreint-settings
