@@ -1,2 +1,4 @@
+*.tfstate
+
 .idea
 .terraform
