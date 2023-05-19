@@ -35,6 +35,11 @@ Automatic pre-releases executes a GET request to it and fails if the status resp
 
 The block mechanism can be manually set by manually executing the workflow [Block automatic releases](.github/workflows/block.yaml) and unset by the workflow [Unblock automatic releases](.github/workflows/unblock.yaml) from the Actions panel.
 
+## Terraform modules
+
+This folder holds several terraform frameworks to deploy integration canary environments. See [Readme](.github/terraform_modules/README.md) for more information.
+
+
 
 **A note about vulnerabilities**
 
