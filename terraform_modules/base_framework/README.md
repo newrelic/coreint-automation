@@ -11,7 +11,7 @@ Base framework builds basic infrastructure to deploy canary resources. When appl
 * 1 Bastion EC2 Ubuntu instance (Jump Server) on the public subnet allowing external ICMP and SSH traffic
 * TLS Certificate and SSH Key
 
-**IMPORTANT**: All state and locks for this terraform module are held in the S3 bucket and DynamoDB table created by the [states framework](##States-Framework). Therefore, it is important the states_framework module to be run prior to base_framework.
+**IMPORTANT**: All state and locks for this terraform module are held in the S3 bucket and DynamoDB table created by the [states framework](../states_framework/README.md). Therefore, it is important the states_framework module to be run prior to base_framework.
 
 ### Usage:
   ```
