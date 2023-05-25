@@ -7,9 +7,9 @@ terraform {
   }
 
   backend s3 {
-    bucket         = "nr-coreint-canaries-tfstates"
-    dynamodb_table = "nr-coreint-canaries-tflocking"
-    key            = "base-framework/integrations/oracle.tfstate"
+    bucket         = "coreint-canaries"
+    dynamodb_table = "coreint-canaries"
+    # key            = "" # set the key where the state for this canary will be saved i.e "canary_name/terraform-states-backend.tfstate"
     region         = "eu-west-1"
   }
 }
@@ -23,7 +23,7 @@ provider aws {
   default_tags {
     tags = {
       "owning_team" = "COREINT"
-      "purpose"     = "e2e-nightly-automation"
+      "purpose"     = "Coreint Canaries"
     }
   }
 }

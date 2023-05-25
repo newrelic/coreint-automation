@@ -1,8 +1,4 @@
-# Terraform Modules
-
-This repository holds basic framework for deploying canary environments with Terraform.
-
-## Base Framework
+# Base Framework
 
 Base framework builds basic infrastructure to deploy canary resources. When applied, terraform will create:
 * 1 Main VPC network 
@@ -41,25 +37,3 @@ The Bastion can be used in 2 different ways
   when running the above command you will get a message `c : Connected to server.`, if successful. Open a new terminal window, and you will be able to access destination resource directly with their internal IP address/dns name.
   
   `<CTRL-C>` on the sshuttle window to terminate the tunnel.
-
-## Canary Template
-
-Canary template is a skeleton that can be used to build modules for each specific integration canary.
-It provides a way to access base framework resources, like private subnet ids, to reuse them in the new resource deployment. 
-
-## States Framework
-
-The states framework deploys 2 resources:
-* An S3 bucket to save state files from the different canaries
-* A DynamoDB table to lock deployments
-
-As this module create resources needed by all the other modules/frameworks it has to be run prior to any other deployment. It only needs to ber run once
-
-### Usage:
-  ```
-  $ terraform init
-  
-  $ terraform plan
-  
-  $ terraform apply
-  ```

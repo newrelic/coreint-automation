@@ -1,7 +1,7 @@
 data aws_ami ubuntu {
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-*-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-${var.ubuntu_release}-*-amd64-server-*"]
   }
   filter {
     name   = "virtualization-type"
@@ -10,12 +10,6 @@ data aws_ami ubuntu {
 
   most_recent = true
   owners      = ["099720109477"] # Canonical
-}
-
-
-resource aws_key_pair base_framework {
-  key_name   = "terraform-coreint-canaries"
-  public_key = file(pathexpand("~/.ssh/terraform.pub"))
 }
 
 
@@ -53,7 +47,7 @@ data cloudinit_config jump_machine {
           homedir             = "/home/terraform"
           lock_passwd         = true
           ssh_authorized_keys = [
-            file(pathexpand("~/.ssh/terraform.pub")),
+            tls_private_key.ssh_client.public_key_openssh,
           ]
           ssh_keys = {
             rsa_public  = tls_private_key.coreint_ca.public_key_pem
@@ -73,7 +67,7 @@ resource aws_instance jump_machine {
       user        = "terraform"
       host        = self.public_ip
       host_key    = tls_private_key.coreint_ca.public_key_openssh
-      private_key = file(pathexpand("~/.ssh/terraform"))
+      private_key = tls_private_key.ssh_client.private_key_pem
     }
     inline = ["echo cloud-init finished configuring this host. I am able to connect."]
   }
@@ -88,7 +82,7 @@ resource aws_instance jump_machine {
   }
 
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "c6i.large"
+  instance_type = "${var.instance_type}"
 
   subnet_id                   = aws_subnet.public_subnet.id
   associate_public_ip_address = true
@@ -97,7 +91,7 @@ resource aws_instance jump_machine {
     aws_security_group.ssh_icmp_access_to_jump_machine.id
   ]
 
-  key_name         = aws_key_pair.base_framework.key_name
+  key_name         = aws_key_pair.ssh_key_pair.key_name
   user_data_base64 = data.cloudinit_config.jump_machine.rendered
 }
 

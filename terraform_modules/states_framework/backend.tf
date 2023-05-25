@@ -1,7 +1,7 @@
 resource aws_s3_bucket tfstates {
-  bucket              = "nr-coreint-canaries-tfstates"
+  bucket              = "coreint-canaries"
   object_lock_enabled = true
-  force_destroy     = true # Allow to destroy all the versions automatically created.
+  # force_destroy     = true # Allow to destroy all the versions automatically created.
 }
 
 resource aws_s3_bucket_versioning tfstates {
@@ -12,7 +12,7 @@ resource aws_s3_bucket_versioning tfstates {
   }
 }
 
-resource "aws_s3_bucket_ownership_controls" tfstates {
+resource aws_s3_bucket_ownership_controls tfstates {
   bucket = aws_s3_bucket.tfstates.id
   rule {
     object_ownership = "BucketOwnerPreferred"
@@ -39,7 +39,7 @@ resource aws_s3_bucket_object_lock_configuration tfstates {
   rule {
     default_retention {
       mode = "COMPLIANCE"
-      days = 2
+      days = 60
     }
   }
 }
@@ -55,7 +55,7 @@ resource aws_s3_bucket_server_side_encryption_configuration tfstates {
 }
 
 resource aws_dynamodb_table tfstates {
-  name = "nr-coreint-canaries-tflocking"
+  name = "coreint-canaries"
 
   read_capacity  = 5
   write_capacity = 5

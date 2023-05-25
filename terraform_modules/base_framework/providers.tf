@@ -4,10 +4,6 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 3.0"
     }
-    local = {
-      source  = "hashicorp/local"
-      version = ">= 2.1"
-    }
     tls = {
       source  = "hashicorp/tls"
       version = ">= 3.1"
@@ -19,17 +15,12 @@ terraform {
   }
 
   backend s3 {
-    bucket         = "nr-coreint-canaries-tfstates"
-    dynamodb_table = "nr-coreint-canaries-tflocking"
-    key            = "base-framework/global-state-store.tfstate"
+    bucket         = "coreint-canaries"
+    dynamodb_table = "coreint-canaries"
+    key            = "foundations/terraform-states-backend.tfstate"
     region         = "eu-west-1"
   }
 }
-
-# ########################################### #
-#  Local file                                 #
-# ########################################### #
-provider local {}
 
 # ########################################### #
 #  TLS certs                                  #

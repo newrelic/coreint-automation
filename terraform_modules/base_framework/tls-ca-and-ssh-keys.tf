@@ -24,7 +24,20 @@ resource tls_self_signed_cert coreint_ca {
 }
 
 resource tls_private_key ssh_client {
-  algorithm = "ECDSA"
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource aws_key_pair ssh_key_pair {
+  key_name   = "${var.canary_name} - SSH Key"
+  public_key = tls_private_key.ssh_client.public_key_openssh
+}
+
+resource local_file ssh_pem_file {
+  filename = pathexpand("~/.ssh/${var.canary_name}/${var.canary_name} - SSH Key.pem")  # HARDCODED
+  directory_permission = "0700"
+  file_permission = "0400"
+  content  = tls_private_key.ssh_client.private_key_pem
 }
 
 
