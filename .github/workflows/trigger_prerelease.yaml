@@ -108,4 +108,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
           slack-channel: ${{ secrets.slack_channel }}
-          slack-text: "❌ `${{ github.event.repository.name }}`: prerelease creation failed."
+          slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease trigger failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})"
