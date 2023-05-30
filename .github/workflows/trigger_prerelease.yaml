@@ -83,4 +83,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
           slack-channel: ${{ secrets.slack_channel }}
-          slack-text: "❌ `${{ env.REPO_FULL_NAME }}`: prerelease pipeline failed."
+          slack-text: "❌ `${{ github.event.repository.name }}`: prerelease creation failed."
