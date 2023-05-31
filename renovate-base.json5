@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      // Enable go indirect dependencies.
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
+      // Only minor and patch versions are auto-merged, major versions will require a PR.
+      "matchUpdateTypes": ["minor", "patch"],
+      // Exclude packages known for breaking changes even in minor and patch upgrades.
+      "excludePackagePatterns": ["sarama"],
+      // Exclude any dependencies which are pre-1.0.0 because those can make breaking changes at any time
+      // according to the SemVer spec.
+      "matchCurrentVersion": "!/^(0|v0)/",
+      // Renovate will do the following when detecting a new dependency bump:
+      // - If it's one of the exclusions it will create a PR (major, 0. or v0. and sarama)
+      // - In case it matches one of the rest cases, it will create a branch that will be auto merged if tests pass.
+      // - If in the previous step tests fail, a PR will be created instead of merging the branch.
+      "automerge": true,
+      "automergeType": "branch",
+      "pruneBranchAfterAutomerge": true
+    },
+    {
+        // golang-version is not updated by default, check <https://github.com/renovatebot/renovate/issues/16715>.
+        // Enable golang version bumps but disable auto-merge.
+        "matchDatasources": ["golang-version"],
+        "rangeStrategy": "bump",
+        // The packageRules are overrided/merged, therefore this rule needs to set automerge to false explicitly.
+        "automerge": false,
+    }
+  ]
+}
