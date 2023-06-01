@@ -66,6 +66,9 @@ Or include additional rules if needed:
 
 Check [Shareable Config Presets in Renovate Docs](https://docs.renovatebot.com/config-presets/#github-actions) for further information.
 
+### Renovate configuration resources
+
+* Renovate logs can be check in [mend developer website](https://developer.mend.io/).
 
 **A note about vulnerabilities**
 
