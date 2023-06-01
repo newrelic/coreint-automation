@@ -3,6 +3,7 @@
   "extends": [
     "config:base"
   ],
+  "printConfig": true,
   "labels": ["dependencies"],
   // The rules defined here will be used in all core-int repositories, so they should be valid
   // for all of them.
