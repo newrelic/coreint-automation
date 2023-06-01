@@ -4,6 +4,8 @@
     "config:base"
   ],
   "labels": ["dependencies"],
+  // The rules defined here will be used in all core-int repositories, so they should be valid
+  // for all of them.
   "packageRules": [
     {
       // Enable go indirect dependencies.
@@ -15,8 +17,6 @@
       // Only minor and patch versions are auto-merged, major versions will require a PR.
       "matchUpdateTypes": ["minor", "patch"],
       // Exclude packages known for breaking changes even in minor and patch upgrades.
-      // Take into account that this configuration is shared between all integration repos so 
-      // the rule applied here must apply for all of them.
       "excludePackagePatterns": ["sarama"],
       // Exclude any dependencies which are pre-1.0.0 because those can make breaking changes at any time
       // according to the SemVer spec.

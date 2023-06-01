@@ -28,7 +28,7 @@ Reusable workflow to pre-release. This is used by ohai repos trigger_prerelease 
         slack_channel: 'slack channel for sending a message in case of failure'
         slack_token: 'slack token for sending the above message'
   ```
-## Automatic releases block endpoint 
+## Automatic releases block endpoint
 
 This repo exposes a github page from the `gh_page` branch containing a file `automatic_release_enable` which is used as a block endpoint.
 Automatic pre-releases executes a GET request to it and fails if the status response is different than 200.
@@ -39,6 +39,32 @@ The block mechanism can be manually set by manually executing the workflow [Bloc
 
 This folder holds several terraform frameworks to deploy integration canary environments. See [Readme](.github/terraform_modules/README.md) for more information.
 
+## Renovate shared config
+
+[renovate-base.json5](./renovate-base.json5) defines a base renovate configuration to be used in all core-int repositories.
+
+ It can be used directly like this:
+
+```json5
+{
+  "extends": [
+    "github>newrelic/coreint-automation:renovate-base.json5"
+  ]
+}
+```
+
+Or include additional rules if needed:
+
+```json5
+ "extends": [
+   "github>newrelic/coreint-automation:renovate-base.json5"
+  ],
+  "packageRules": [
+    // ...
+  ]
+```
+
+Check [Shareable Config Presets in Renovate Docs](https://docs.renovatebot.com/config-presets/#github-actions) for further information.
 
 
 **A note about vulnerabilities**
