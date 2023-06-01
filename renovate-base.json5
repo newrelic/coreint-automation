@@ -8,12 +8,6 @@
   // for all of them.
   "packageRules": [
     {
-      // Enable go indirect dependencies.
-      "matchManagers": ["gomod"],
-      "matchDepTypes": ["indirect"],
-      "enabled": true
-    },
-    {
       // Only minor and patch versions are auto-merged, major versions will require a PR.
       "matchUpdateTypes": ["minor", "patch"],
       // Exclude packages known for breaking changes even in minor and patch upgrades.
