@@ -1,7 +1,7 @@
 data aws_ami ubuntu {
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-${var.ubuntu_release}-*-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-${var.bastion_ubuntu_release}-*-amd64-server-*"]
   }
   filter {
     name   = "virtualization-type"
@@ -82,7 +82,7 @@ resource aws_instance jump_machine {
   }
 
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "${var.instance_type}"
+  instance_type = "${var.bastion_instance_type}"
 
   subnet_id                   = aws_subnet.public_subnet.id
   associate_public_ip_address = true
