@@ -5,10 +5,8 @@ resource "aws_eks_cluster" "ekscluster" {
   version  = var.k8s_version
 
   vpc_config {
-    subnet_ids              = flatten([aws_subnet.public_subnet[*].id, aws_subnet.private_subnets[*].id])
+    subnet_ids              = flatten([aws_subnet.private_subnets[*].id])
     endpoint_private_access = true
-    endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"]
   }
 
   depends_on = [
@@ -176,14 +174,13 @@ resource "aws_security_group_rule" "nodes_cluster_inbound" {
   type                     = "ingress"
 }
 
-output "cluster_name" {
-  value = aws_eks_cluster.ekscluster.name
-}
-
-output "cluster_endpoint" {
-  value = aws_eks_cluster.ekscluster.endpoint
-}
-
-output "cluster_ca_certificate" {
-  value = aws_eks_cluster.ekscluster.certificate_authority[0].data
+output ekscluster {
+  value = {
+    aws_eks_cluster = {
+      ekscluster = {
+        name     = aws_eks_cluster.ekscluster.name
+        endpoint = aws_eks_cluster.ekscluster.endpoint
+      }
+    }
+  }
 }
