@@ -7,7 +7,9 @@ Base framework builds basic infrastructure to deploy canary resources. When appl
 * 1 Internet Gateway to allow outbound communication
 * 1 NAT Gateway to allow outbound communication from resources in the private subnets
 * 3 Route Tables (Default, Public and Private)
-* 1 Default Security Group allowing all traffic on the VPC
+* 3 Security Groups (VPC Traffic, EKS and EKS Nodes)
+* 1 EKS Cluster (On the Private subnet)
+* 2 IAM Roles (EKS and EKS nodes)
 * 1 Bastion EC2 Ubuntu instance (Jump Server) on the public subnet allowing external ICMP and SSH traffic
 * TLS Certificate and SSH Key
 
@@ -21,6 +23,21 @@ Base framework builds basic infrastructure to deploy canary resources. When appl
   
   $ terraform apply
   ```
+
+
+### Setting up kubeconfig to connect to EKS Cluster
+1. Retrieve the name of the EKS Cluster:
+  ```
+  $ aws eks list-clusters
+  ```
+2. Setup kubeconfig to connect to the new cluster:
+  ```
+  $ aws eks update-kubeconfig --name <cluster_name>
+  ```  
+3. Check if the new configuration is active:
+  ```
+  $ kubectl cluster-info
+  ```  
 
 
 ### How to use the Bastion (Jump Server):
