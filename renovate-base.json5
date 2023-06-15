@@ -5,6 +5,9 @@
   ],
   "printConfig": true,
   "labels": ["dependencies"],
+  // Update source import paths on major module updates, using mod.
+  // Since postUpdateOptions is mergeable, all previous and future values are kept
+  "postUpdateOptions": ["gomodUpdateImportPaths"],
   // The rules defined here will be used in all core-int repositories, so they should be valid
   // for all of them.
   "packageRules": [
