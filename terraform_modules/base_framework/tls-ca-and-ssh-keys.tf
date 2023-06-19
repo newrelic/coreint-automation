@@ -54,11 +54,16 @@ output tls_ca_and_ssh_keys {
         public_key_pem     = tls_private_key.ssh_client.public_key_pem
       }
     }
+    aws_key_pair = {
+      ssh_key_pair = {
+        key_name = aws_key_pair.ssh_key_pair.key_name
+      }
+    }
   }
 }
 
 
-output sensitive__tls_ca_and_ssh_keys {
+output sensitive_tls_ca_and_ssh_keys {
   sensitive = true
   value = {
     tls_private_key = {

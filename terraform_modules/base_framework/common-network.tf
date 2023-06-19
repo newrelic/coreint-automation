@@ -132,6 +132,31 @@ resource aws_route_table_association private {
   subnet_id      = aws_subnet.private_subnets[count.index].id
 }
 
+# This security group allows traffic between internal resources and EKS pods
+# All resources deployed on the vpc should have the SG added to allow transparent traffic between them
+# This was done as a workaround
+resource aws_security_group internal_traffic {
+  tags = {
+    Name = "${var.canary_name} Internal Traffic Security Group"
+  }
+  name = "${var.canary_name} Internal Traffic Security Group"
+  vpc_id = aws_vpc.base_vpc.id
+
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol  = -1
+    cidr_blocks = ["${var.network_cidr}"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 output common_networking {
   value = {
     aws_vpc = {
@@ -149,6 +174,13 @@ output common_networking {
         arn  = aws_default_security_group.default.arn,
         id   = aws_default_security_group.default.id,
         name = aws_default_security_group.default.name,
+      }
+    }
+    aws_security_group = {
+      internal_traffic = {
+        arn  = aws_security_group.internal_traffic.arn,
+        id   = aws_security_group.internal_traffic.id,
+        name = aws_security_group.internal_traffic.name,
       }
     }
   }
