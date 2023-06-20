@@ -7,7 +7,8 @@ resource aws_db_subnet_group resource_name {
   name       = "resource_name"
 
   # the following code will retrieve the subnets used by the base vpc so these can be used
-  # to allocate new resources.
+  # to allocate new resources. This is an example, you might want to run only on one of the
+  # subnets or even choose them randomly.
   subnet_ids = [
     data.terraform_remote_state.base_framework.outputs.common_networking.aws_subnet.private_subnets[0].id,
     data.terraform_remote_state.base_framework.outputs.common_networking.aws_subnet.private_subnets[1].id,
