@@ -29,10 +29,10 @@ labels-common: &labels-common
     color: e11d21
     description: Categorizes issue or PR as related to a consistently or frequently failing test.
     replaces: [ kind/test ]
-  feature:
+  feature request:
     color: c7def8
     description: Categorizes issue or PR as related to a new feature or enhancement.
-    replaces: [ kind/feature, enhancement ]
+    replaces: [ kind/feature, enhancement, feature ]
   regression:
     color: e11d21
     description: Categorizes issue or PR as related to a regression from a prior release.
