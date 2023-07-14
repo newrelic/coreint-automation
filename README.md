@@ -82,7 +82,7 @@ To all contributors, we thank you!  Without your contribution, this project woul
 
 ## Support
 
-New Relic hosts and moderates an online forum where customers can interact with New Relic employees as well as other customers to get help and share best practices. Like all official New Relic open source projects, there's a related [Community](https://discuss.newrelic.com) topic in the New Relic Explorers Hub.
+New Relic hosts and moderates an online forum where customers can interact with New Relic employees as well as other customers to get help and share best practices. Like all official New Relic open source projects, there's a related [Community](https://forum.newrelic.com) topic in the New Relic Explorers Hub.
 
 ## License
 [Project Name] is licensed under the [Apache 2.0](http://apache.org/licenses/LICENSE-2.0.txt) License.
