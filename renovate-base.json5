@@ -12,7 +12,7 @@
     "**/test/**",
 //    "**/tests/**", Disabling default ignored path
     "**/__fixtures__/**"
-  ]
+  ],
   "printConfig": true,
   "labels": ["dependencies"],
   // Update source import paths on major module updates, using mod.
