@@ -39,7 +39,7 @@
       "pruneBranchAfterAutomerge": true
     },
     {
-      // Only minor versions are auto-merged unless the dependency is golang.
+      // Minor versions are also auto-merged except for golang
       "matchUpdateTypes": ["minor"],
       // Exclude packages known for breaking changes even in minor and patch upgrades.
       "excludePackagePatterns": ["sarama"],
