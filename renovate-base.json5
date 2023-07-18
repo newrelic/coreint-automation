@@ -9,8 +9,8 @@
     "**/vendor/**",
     "**/examples/**",
     "**/__tests__/**",
-    "**/test/**",
-//    "**/tests/**", Disabling default ignored path
+//    "**/test/**", Disabling default ignored path
+//    "**/tests/**",
     "**/__fixtures__/**"
   ],
   "printConfig": true,
