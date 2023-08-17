@@ -42,12 +42,40 @@ Base framework builds basic infrastructure to deploy canary resources. When appl
 
 ### How to use the Bastion (Jump Server):
 
-The Bastion can be used in 2 different ways
-1. As a gateway to directly ssh into a private network EC2 instance:
+#### SSH into canaries
+As a gateway to directly ssh into a private network EC2 instance:
+  ```shell
+  ssh -o ProxyCommand="ssh -W %h:%p terraform@<bastion_public_ip_address> -i Canaries-Key.pem" terraform@<ec2_private_ip_address> -i Canaries-Key.pem
   ```
-  $ ssh -J terraform@<bastion_public_ip_address> username@<ec2_private_ip_address>
+  
+  Or by using the ssh config
+
   ```
-2. As a tunnel to access private resources:
+  Host canary
+    Hostname <ec2_private_ip_address>
+    ProxyCommand ssh -W %h:%p bastion
+    User terraform
+    IdentityFile path/to/ssh/Canaries-Key.pem
+    Port 22
+
+  Host bastion
+    Hostname <bastion_public_ip_address>
+    User terraform
+    IdentityFile path/to/ssh/Canaries-Key.pem
+    Port 22
+  ```
+
+  and ssh with:
+  
+  ```shell
+  ssh canary
+  ```
+
+  Note that the terraform user must be created into the canary with the base framework public ssh key as authorized key.
+
+#### Tunnel to services
+As a tunnel to access private resources:
+  TODO: specify the SSH Identity key for the connection.
   ```
   $ sudo sshuttle -r terraform@<bastion_public_ip_address> <network_cidr_behind_bastion>
   ```
