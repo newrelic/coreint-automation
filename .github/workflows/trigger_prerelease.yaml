@@ -18,6 +18,16 @@ on:
         required: false
         type: string
         default: https://newrelic.github.io/coreint-automation/automatic_release_enable
+      bot_name:
+        description: "github bot name to sign commits"
+        required: false
+        type: string
+        default: newrelic-coreint-bot
+      bot_email:
+        description: "github bot email to sign commits"
+        required: false
+        type: string
+        default: coreint-dev@newrelic.com
       rt-excluded-dirs:
         description: Release-toolkit excluded-dirs field.
         required: false
@@ -88,8 +98,8 @@ jobs:
       - name: Configure Git
         if: ${{ steps.release-data.outputs.skip-release != 'true' }}
         run: |
-          git config user.name newrelic-coreint-bot
-          git config user.email coreint-dev@newrelic.com
+          git config user.name '${{ inputs.bot_name }}'
+          git config user.email '${{ inputs.bot_email }}'
       - name: Commit updated changelog
         if: ${{ steps.release-data.outputs.skip-release != 'true' }}
         run: |
