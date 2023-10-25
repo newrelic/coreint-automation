@@ -1,0 +1,53 @@
+name: Security Scan
+
+# To see how to reuse this workflow, see `security.yaml` workflow in this repository.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip-dirs:
+        description: 'comma separated list of directories where traversal is skipped'
+        required: false
+        default: ''
+      skip-files:
+        description: 'comma separated list of files to be skipped'
+        required: false
+        default: ''
+
+jobs:
+  trivy:
+    name: Trivy security scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@0.12.0
+        if: ${{ ! github.event.schedule }}  # Do not run inline checks when running periodically
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          exit-code: 1
+          severity: 'HIGH,CRITICAL'
+          skip-dirs: "${{ inputs.skip-dirs }}"
+          skip-files: "${{ inputs.skip-files }}"
+
+      - name: Run Trivy vulnerability scanner sarif output
+        uses: aquasecurity/trivy-action@0.12.0
+        if: ${{ github.event.schedule }}  # Generate sarif when running periodically
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-results.sarif'
+          skip-dirs: "${{ inputs.skip-dirs }}"
+          skip-files: "${{ inputs.skip-files }}"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: ${{ github.event.schedule }}  # Upload sarif when running periodically
+        with:
+          sarif_file: 'trivy-results.sarif'

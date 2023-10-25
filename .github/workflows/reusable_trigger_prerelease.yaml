@@ -9,6 +9,8 @@ name: Trigger pre-release shared workflow
 #        bot_token: {{ secret."github_token_name" }}
 #        slack_channel: {{ secret."slack_channel_name" }}
 #        slack_token: {{ secret."slack_token_name" }}
+#      with:
+#        rt-included-files: go.mod,go.sum,build/Dockerfile
 
 on:
   workflow_call:
