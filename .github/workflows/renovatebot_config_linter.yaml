@@ -1,0 +1,18 @@
+name: Test Renovatebot configuration
+
+on: pull_request
+
+jobs:
+  renovate-config-validator:
+    name: Renovatebot config validator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Renovatebot config validator
+        run: npm install --global renovate
+
+      - name: Test that the config is valid
+        run: |
+            find -name renovate\*.json\* -exec renovate-config-validator {} \; || renovate-config-validator
