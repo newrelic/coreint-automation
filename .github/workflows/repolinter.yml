@@ -8,5 +8,5 @@ on:
 
 jobs:
   repolinter:
-    uses: ./.github/workflows/reusable_repolinter.yaml@v1
+    uses: ./.github/workflows/reusable_repolinter.yaml
   # uses: newrelic/coreint-automation/.github/workflows/reusable_repolinter.yaml@v1
