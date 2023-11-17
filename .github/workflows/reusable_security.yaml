@@ -3,15 +3,17 @@ name: Security Scan
 # To see how to reuse this workflow, see `security.yaml` workflow in this repository.
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       skip-dirs:
         description: 'comma separated list of directories where traversal is skipped'
         required: false
+        type: string
         default: ''
       skip-files:
         description: 'comma separated list of files to be skipped'
         required: false
+        type: string
         default: ''
 
 jobs:
