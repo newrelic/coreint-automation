@@ -4,6 +4,24 @@ name: Repolinter Action
 
 on:
   workflow_call:
+    inputs:
+      config_url:
+        description: >
+          A URL to pull the JSON or YAML Repolinter ruleset from. This URL must be accessible
+          by the actions runner and return raw JSON file on GET.
+    
+          This option can be used to pull a ruleset from GitHub using the
+          raw.githubusercontent.com URL (ex. https://raw.githubusercontent.com/aperture-science-incorporated/.github/master/repolinter-newrelic-communityplus.json).
+    
+          This option is mutually exclusive with config_url. If this option and
+          config-url are not specified, Repolinter's default ruleset will be used.
+
+          Examples of valid configs for our use cases are:
+            * https://raw.githubusercontent.com/newrelic/.github/main/repolinter-rulesets/community-plus.yml
+            * https://raw.githubusercontent.com/newrelic/.github/main/repolinter-rulesets/community-project.yml
+        required: false
+        type: string
+        default: https://raw.githubusercontent.com/newrelic/.github/main/repolinter-rulesets/community-plus.yml
 
 # NOTE: This workflow will ONLY check the default branch!
 # Currently there is no elegant way to specify the default
@@ -28,5 +46,5 @@ jobs:
         if: ${{ steps.default-branch.outputs.result == 'true' }}
         uses: newrelic/repolinter-action@v1
         with:
-          config_url: https://raw.githubusercontent.com/newrelic/.github/main/repolinter-rulesets/community-plus.yml
+          config_url: "${{ inputs.config_url }}"
           output_type: issue
