@@ -10,3 +10,9 @@ jobs:
   repolinter:
     uses: ./.github/workflows/reusable_repolinter.yaml
   # uses: newrelic/coreint-automation/.github/workflows/reusable_repolinter.yaml@v1
+
+    # This is only needed for this repository in particular as it is community free but not fully supported like the OHAIs
+    # If you are copying this pipeline as an example for other repositories that are supported, you will have to remove
+    # this with. Or use the one needed for your use case.
+    with:
+      config_url: https://raw.githubusercontent.com/newrelic/.github/main/repolinter-rulesets/community-project.yml
