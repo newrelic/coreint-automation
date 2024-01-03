@@ -2,5 +2,14 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": [ "minor" ],
+      "matchPackageNames": [ "aquasecurity/trivy-action" ],
+      "automerge": true,
+      "automergeType": "branch",
+      "pruneBranchAfterAutomerge": true
+    }
   ]
 }
