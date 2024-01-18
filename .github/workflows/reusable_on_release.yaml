@@ -1,0 +1,122 @@
+name: Release pipeline
+
+# Example usage from the caller workflow:
+#
+# It requires the following secrets (inheriting them is recommended for simplicity)
+#  - OHAI_AWS_ROLE_ARN_PRODUCTION
+#  - OHAI_AWS_ACCESS_KEY_ID_PRODUCTION
+#  - OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION
+#  - OHAI_GPG_PASSPHRASE
+#  - OHAI_GPG_PRIVATE_KEY_BASE64
+#  - COREINT_SLACK_TOKEN
+#  - COREINT_SLACK_CHANNEL
+
+# jobs:
+#   job_name:
+#     uses: newrelic/coreint-automation/.github/workflows/trigger_prerelease.yaml@v1
+#     with:
+#       tag: ${{ github.event.release.tag_name }}
+#       integration_name: "integration-name" # without the 'nri-' prefix
+#       # test_package: false # this will skip the package testing, useful when the integration is included with the agent (nri-docker)
+#       # setup a schema for the publish action different from "ohi"
+#       # publish_schema: "custom"
+#       # setup a custom schema url (requires publish_schema='custom')
+#       # publish_schema_url: "https://raw.githubusercontent.com/newrelic/nri-${{ env.INTEGRATION }}/${{ env.TAG }}/build/s3-publish-schema.yml"
+#     secrets: inherit
+
+on:
+  workflow_call:
+
+    inputs:
+      tag:
+        description: Tag to be released
+        type: string
+        required: true
+      integration_name:
+        description: Integration name to be released (without the 'nri-' prefix)
+        type: string
+        required: true
+      # Optional flags
+      test_package:
+        description: Defines if the package should be tested using the 'newrelic/integrations-pkg-test-action/linux' action.
+        type: boolean
+        required: false
+        default: true
+      publish_schema:
+        description: Defines the schema for the publish_action.
+        type: string
+        required: false
+        default: "ohi"
+      publish_schema_url:
+        description: Defines the schema_url for the publish_action (it requires publish_schema='custom')
+        type: string
+        required: false
+        default: ""
+
+    secrets: # uppercase secrets to match the already defined organization secrets
+      OHAI_AWS_ROLE_ARN_PRODUCTION:
+        required: true
+      OHAI_AWS_ACCESS_KEY_ID_PRODUCTION:
+        required: true
+      OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION:
+        required: true
+      OHAI_GPG_PASSPHRASE:
+        required: true
+      OHAI_GPG_PRIVATE_KEY_BASE64:
+        required: true
+      COREINT_SLACK_TOKEN:
+        required: true
+      COREINT_SLACK_CHANNEL:
+        required: true
+
+jobs:
+  publish-to-s3:
+    name: Send release assets to S3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish to S3 action
+        uses: newrelic/infrastructure-publish-action@v1
+        env:
+          AWS_S3_BUCKET_NAME: "nr-downloads-main"
+          AWS_S3_LOCK_BUCKET_NAME: "onhost-ci-lock"
+          AWS_REGION: "us-east-1"
+        with:
+          # lock enabled
+          disable_lock: false
+          run_id: ${{ github.run_id }}
+          tag: ${{ inputs.tag }}
+          app_name: "nri-${{ inputs.integration_name }}"
+          repo_name: ${{ github.event.repository.full_name }}
+          access_point_host: "production"
+          schema: ${{ inputs.publish_schema }}
+          schema_url: ${{ inputs.publish_schema_url }}
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: ${{ env.AWS_S3_BUCKET_NAME }}
+          # used for locking in case of concurrent releases
+          aws_s3_lock_bucket_name: ${{ env.AWS_S3_LOCK_BUCKET_NAME }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      - name: Test package from prod repo
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: 'nri-${{ inputs.integration }}'
+          packageLocation: repo
+          upgrade: false
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [publish-to-s3]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `${{ github.event.repository.full_name }}`: [release pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
