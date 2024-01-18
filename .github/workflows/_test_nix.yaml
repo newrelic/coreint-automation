@@ -1,0 +1,13 @@
+name: Unit Tests on *Nix
+
+on:
+  workflow_call:
+
+jobs:
+  test-nix:
+    name: Run unit tests on *Nix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: make ci/test

@@ -1,0 +1,60 @@
+name: Push/PR shared workflow
+
+# This workflow integrates both the standard test workflow for pull requests and the process
+# of testing packages creation.
+
+on:
+  workflow_call:
+    inputs:
+      integration:
+        required: false
+        type: string
+      run_test_windows:
+        required: false
+        type: boolean
+        default: true
+      run_integration_nix:
+        required: false
+        type: boolean
+        default: true
+      run_test_build_nix:
+        required: false
+        type: boolean
+        default: true
+      run_test_build_fake_prerelease:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      OHAI_PFX_CERTIFICATE_BASE64:
+        required: false
+      OHAI_PFX_PASSPHRASE:
+        required: false
+
+jobs:
+  static-analysis:
+    uses: ./.github/workflows/_static_analysis.yaml
+
+  test-nix:
+    uses: ./.github/workflows/_test_nix.yaml
+
+  test-windows:
+    if: ${{ inputs.run_test_windows }}
+    uses: ./.github/workflows/_test_windows.yaml
+
+  test-integration-nix:
+    if: ${{ inputs.run_integration_nix }}
+    uses: ./.github/workflows/_test_integration_nix.yaml
+
+  test-build-nix:
+    if: ${{ inputs.run_test_build_nix }}
+    uses: ./.github/workflows/_test_build_nix.yaml
+
+  test-build-fake-prerelease:
+    if: ${{ inputs.run_test_build_fake_prerelease }}
+    uses: ./.github/workflows/_test_build_fake_prerelease.yaml
+    secrets:
+      OHAI_PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+      OHAI_PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
+    with:
+      integration: ${{ inputs.integration }}

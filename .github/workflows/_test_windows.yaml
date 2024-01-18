@@ -1,0 +1,20 @@
+name: Unit Tests on Windows
+
+on:
+  workflow_call:
+
+jobs:
+  test-windows:
+    name: Run unit tests on Windows
+    runs-on: windows-2019
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Running unit tests
+        shell: pwsh
+        run: |
+          .\build\windows\unit_tests.ps1

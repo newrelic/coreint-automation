@@ -28,6 +28,22 @@ Reusable workflow to pre-release. This is used by ohai repos trigger_prerelease 
         slack_channel: 'slack channel for sending a message in case of failure'
         slack_token: 'slack token for sending the above message'
   ```
+### push_pr
+
+Reusable workflow that combines the standard testing process for pull requests with the testing of package creation.
+
+Usage:
+```
+jobs:
+  push-pr:
+    uses: newrelic/coreint-automation/.github/workflows/reusable_push_pr.yaml@v1
+    secrets: inherit
+    with:
+      run_test_build_nix: false
+      run_test_build_fake_prerelease: true
+      integration: 'integration name'
+```
+
 
 ### on_release
 

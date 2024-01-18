@@ -1,0 +1,18 @@
+name: Static Analysis
+
+on:
+  workflow_call:
+
+jobs:
+  static-analysis:
+    name: Run all static analysis checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: newrelic/newrelic-infra-checkers@v1
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          only-new-issues: true
+      - name: Check if CHANGELOG is valid
+        uses: newrelic/release-toolkit/validate-markdown@v1
