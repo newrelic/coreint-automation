@@ -14,53 +14,27 @@ Reposettings reads a YAML file and ensures that repositories match the specified
 
 ## Shared Workflows
 
-### trigger_prerelease
+All Workflows located under .github/workflows with prefix `reusable_` are meant to be used by external repos (mainly ohi).
 
-Reusable workflow to pre-release. This is used by ohai repos trigger_prerelease workflow
+### reusable_trigger_prerelease
 
-  Usage:
-  ```
-  jobs:
-    your_prerelease_job_name:
-      uses: newrelic/coreint-automation/.github/workflows/trigger_prerelease.yaml@v1
-      secrets:
-        bot_token: 'github token'
-        slack_channel: 'slack channel for sending a message in case of failure'
-        slack_token: 'slack token for sending the above message'
-  ```
-### push_pr
+Reusable workflow to create a Github pre-release (not to actually build the pre-release packages, which is done by `reusable_pre-release`). 
+This is used by ohai repos trigger_prerelease workflow
+
+Find real example at: [nri-redis](https://github.com/newrelic/nri-redis/blob/master/.github/workflows/trigger_prerelease.yaml)
+
+### reusable_push_pr
 
 Reusable workflow that combines the standard testing process for pull requests with the testing of package creation.
 
-Usage:
-```
-jobs:
-  push-pr:
-    uses: newrelic/coreint-automation/.github/workflows/reusable_push_pr.yaml@v1
-    secrets: inherit
-    with:
-      run_test_build_nix: false
-      run_test_build_fake_prerelease: true
-      integration: 'integration name'
-```
+Find real example at: [nri-redis](https://github.com/newrelic/nri-redis/blob/master/.github/workflows/on_push_pr.yaml)
 
 
 ### on_release
 
 Reusable workflow to release. This is used by ohai repos on_release.yaml workflow
 
-
-  Usage:
-  ```
-  jobs:
-    job_name:
-      uses: newrelic/coreint-automation/.github/workflows/reusable_on_release.yaml@v2
-      with:
-        tag: ${{ github.event.release.tag_name }}
-        integration: "integration name" # without the 'nri-' prefix
-      # When calling this action from the same org we can inherit secrets to avoid specifying them
-      secrets: inherit
-  ```
+Find real example at: [nri-redis](https://github.com/newrelic/nri-redis/blob/master/.github/workflows/on_release.yaml)
 
 ## Automatic releases block endpoint
 

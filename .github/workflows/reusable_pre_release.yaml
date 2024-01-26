@@ -1,0 +1,205 @@
+name: Pre-Release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Git tag vX.X.X for the Release. E.g: 'v1.0.1'"
+        required: true
+        type: string
+      integration:
+        description: "Integration name (without the prefix 'nri-'). E.g: 'redis'"
+        required: true
+        type: string
+      test_package:
+        description: Defines if the package should be tested using the 'newrelic/integrations-pkg-test-action' action.
+        type: boolean
+        required: false
+        default: true
+      publish_schema:
+        description: Defines the schema for the publish_action.
+        type: string
+        required: false
+        default: "ohi"
+      publish_schema_url:
+        description: Defines the schema_url for the publish_action (it requires publish_schema='custom')
+        type: string
+        required: false
+        default: ""
+      run_integration_nix:
+        required: false
+        type: boolean
+        default: true
+      run_test_windows:
+        required: false
+        type: boolean
+        default: true
+      run_build-win-packages:
+        description: "Build Windows packages"
+        required: false
+        type: boolean
+        default: true
+      win_package_type:
+        description: "Package type (msi,exe). Integrations that wraps other binaries are packages in exe (nri-kafka)"
+        default: msi
+        required: false
+        type: string
+    secrets:
+      OHAI_AWS_ROLE_ARN_STAGING:
+        required: true
+      OHAI_AWS_ROLE_SESSION_NAME_STAGING:
+        required: true
+      OHAI_AWS_ACCESS_KEY_ID_STAGING:
+        required: true
+      OHAI_AWS_SECRET_ACCESS_KEY_STAGING:
+        required: true
+      OHAI_GPG_PASSPHRASE:
+        required: true
+      OHAI_GPG_PRIVATE_KEY_BASE64:
+        required: true
+      OHAI_PFX_CERTIFICATE_BASE64:
+        required: false
+      OHAI_PFX_PASSPHRASE:
+        required: false
+      COREINT_SLACK_TOKEN:
+        required: true
+      COREINT_SLACK_CHANNEL:
+        required: true
+
+env:
+  # Build scripts inputs are mixed between this env vars and config args.
+  REPO_FULL_NAME: ${{ github.event.repository.full_name }}
+  TAG: ${{ inputs.tag }}
+  INTEGRATION: ${{ inputs.integration }}
+
+jobs:
+  test-nix:
+    uses: ./.github/workflows/_test_nix.yaml
+
+  test-windows:
+    if: ${{ inputs.run_test_windows }}
+    uses: ./.github/workflows/_test_windows.yaml
+
+  test-integration-nix:
+    if: ${{ inputs.run_integration_nix }}
+    uses: ./.github/workflows/_test_integration_nix.yaml
+
+  build-artifacts:
+    name: Build binary for *Nix/Win, create archives for *Nix/Win, create packages for *Nix, upload all artifacts into GH Release assets
+    needs: [test-nix, test-windows, test-integration-nix]
+    # Currently behavior of GHA skips the job if any 'needs' is skipped(Windows tests disabled),so the next condition is needed.
+    # Runs always that 'needs' finishes if they are not cancelled nor failed. 
+    if: ${{ always() && !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pre release
+        env:
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+          # The upload script expects this to authenticate.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make ci/prerelease
+      - name: Test package installability
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: nri-${{ inputs.integration }}
+
+  build-win-packages:
+    name: Create MSI & Upload into GH Release assets
+    if: ${{ inputs.run_build-win-packages }}
+    runs-on: windows-2022
+    needs: [build-artifacts]
+    strategy:
+      matrix:
+        goarch: [amd64,386]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get PFX certificate from GH secrets
+        shell: bash
+        env:
+          PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+        run: printf "%s" "$PFX_CERTIFICATE_BASE64" | base64 -d - > wincert.pfx
+      - name: Download zip from GH Release assets and extract .exe
+        shell: pwsh
+        run: |
+          build\windows\download_zip_extract_exe.ps1 "$env:INTEGRATION" ${{ matrix.goarch }} "$env:TAG" "$env:REPO_FULL_NAME"
+      - name: Create MSI
+        shell: pwsh
+        env:
+          PFX_PASSPHRASE:  ${{ secrets.OHAI_PFX_PASSPHRASE }}
+        run: |
+          build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch "${{ matrix.goarch }}" -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "New Relic"
+      - name: Test win packages installation
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/windows@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: nri-${{ inputs.integration }}
+          arch: ${{ matrix.goarch }}
+          pkgType: ${{ inputs.win_package_type }}
+          upgrade: true
+          pkgDirBase: build\package\windows
+      - name: Upload MSI to GH Release
+        shell: bash
+        env:
+          # The upload script expects this to authenticate.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          build/windows/upload_msi.sh "$INTEGRATION" "${{ matrix.goarch }}" "$TAG"
+  
+  publish:
+    name: Send release assets to S3
+    needs: [build-artifacts, build-win-packages]
+    # Currently behavior of GHA skips the job if any 'needs' is skipped(Windows tests disabled), so the next condition is needed.
+    # Runs always that 'needs' finishes if they are not cancelled nor failed
+    if: ${{ always() && !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish to S3 action
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          disable_lock: false
+          run_id: ${{ github.run_id }}
+          tag: ${{ inputs.tag }}
+          app_name: "nri-${{ inputs.integration }}"
+          repo_name: ${{ github.event.repository.full_name }}
+          access_point_host: "staging"
+          schema: ${{ inputs.publish_schema }}
+          schema_url: ${{ inputs.publish_schema_url }}
+          aws_region: "us-east-1"
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      - name: Test package from Staging repo
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: 'nri-${{ inputs.integration }}'
+          packageLocation: repo
+          stagingRepo: true
+          upgrade: false
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [test-nix, test-windows, test-integration-nix, builds-packages, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
+
