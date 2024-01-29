@@ -28,6 +28,24 @@ Reusable workflow to pre-release. This is used by ohai repos trigger_prerelease 
         slack_channel: 'slack channel for sending a message in case of failure'
         slack_token: 'slack token for sending the above message'
   ```
+
+### on_release
+
+Reusable workflow to release. This is used by ohai repos on_release.yaml workflow
+
+
+  Usage:
+  ```
+  jobs:
+    job_name:
+      uses: newrelic/coreint-automation/.github/workflows/reusable_on_release.yaml@v2
+      with:
+        tag: ${{ github.event.release.tag_name }}
+        integration: "integration name" # without the 'nri-' prefix
+      # When calling this action from the same org we can inherit secrets to avoid specifying them
+      secrets: inherit
+  ```
+
 ## Automatic releases block endpoint
 
 This repo exposes a github page from the `gh_page` branch containing a file `automatic_release_enable` which is used as a block endpoint.
