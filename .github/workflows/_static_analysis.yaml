@@ -12,6 +12,7 @@ jobs:
       - uses: newrelic/newrelic-infra-checkers@v1
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
         with:
           only-new-issues: true
       - name: Check if CHANGELOG is valid
