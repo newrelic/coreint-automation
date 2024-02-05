@@ -25,6 +25,10 @@ on:
         required: false
         type: boolean
         default: false
+      fake_prerelease_goarch_matrix:
+        required: false
+        type: string
+        default: '["amd64", "386"]'
     secrets:
       OHAI_PFX_CERTIFICATE_BASE64:
         required: false
@@ -58,3 +62,4 @@ jobs:
       OHAI_PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
     with:
       integration: ${{ inputs.integration }}
+      goarch_matrix: ${{ inputs.fake_prerelease_goarch_matrix }}
