@@ -29,6 +29,10 @@ on:
         required: false
         type: string
         default: '["amd64", "386"]'
+      fake_prerelease_download_nrjmx:
+        required: false
+        type: boolean
+        default: false
     secrets:
       OHAI_PFX_CERTIFICATE_BASE64:
         required: false
@@ -63,3 +67,4 @@ jobs:
     with:
       integration: ${{ inputs.integration }}
       goarch_matrix: ${{ inputs.fake_prerelease_goarch_matrix }}
+      download_nrjmx: ${{ inputs.fake_prerelease_download_nrjmx }}
