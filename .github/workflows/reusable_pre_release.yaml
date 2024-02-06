@@ -44,12 +44,12 @@ on:
         default: msi
         required: false
         type: string
-      goarch_matrix:
+      windows_goarch_matrix:
         description: "Defines a custom goarch-matrix for windows builds as nrjmx based integrations support amd64 only (it needs to be a JSON array)"
         required: false
         type: string
         default: '["amd64", "386"]'
-      download_nrjmx:
+      windows_download_nrjmx:
         description: "When enabled, the windows build will download nrjmx"
         required: false
         type: boolean
@@ -126,7 +126,7 @@ jobs:
     needs: [build-artifacts]
     strategy:
       matrix:
-        goarch: ${{ fromJSON(inputs.goarch_matrix) }}
+        goarch: ${{ fromJSON(inputs.windows_goarch_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,7 +140,7 @@ jobs:
         run: |
           build\windows\download_zip_extract_exe.ps1 "$env:INTEGRATION" ${{ matrix.goarch }} "$env:TAG" "$env:REPO_FULL_NAME"
       - name: Download nrjmx
-        if: ${{ inputs.download_nrjmx }}
+        if: ${{ inputs.windows_download_nrjmx }}
         shell: bash
         run: build/windows/download_nrjmx.sh
       - name: Create MSI
