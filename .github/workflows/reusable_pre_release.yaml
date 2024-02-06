@@ -45,7 +45,7 @@ on:
         required: false
         type: string
       goarch_matrix:
-        description: "Defines a custom goarch-matrix for windows builds as nrjmx based integrations support amd64 only"
+        description: "Defines a custom goarch-matrix for windows builds as nrjmx based integrations support amd64 only (it needs to be a JSON array)"
         required: false
         type: string
         default: '["amd64", "386"]'
