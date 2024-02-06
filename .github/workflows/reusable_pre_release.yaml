@@ -44,6 +44,17 @@ on:
         default: msi
         required: false
         type: string
+      goarch_matrix:
+        description: "Defines a custom goarch-matrix for windows builds as nrjmx based integrations support amd64 only"
+        required: false
+        type: string
+        default: '["amd64", "386"]'
+      download_nrjmx:
+        description: "When enabled, the windows build will download nrjmx"
+        required: false
+        type: boolean
+        default: false
+
     secrets:
       OHAI_AWS_ROLE_ARN_STAGING:
         required: true
@@ -115,7 +126,7 @@ jobs:
     needs: [build-artifacts]
     strategy:
       matrix:
-        goarch: [amd64,386]
+        goarch: ${{ fromJSON(inputs.goarch_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -128,6 +139,10 @@ jobs:
         shell: pwsh
         run: |
           build\windows\download_zip_extract_exe.ps1 "$env:INTEGRATION" ${{ matrix.goarch }} "$env:TAG" "$env:REPO_FULL_NAME"
+      - name: Download nrjmx
+        if: ${{ inputs.download_nrjmx }}
+        shell: bash
+        run: build/windows/download_nrjmx.sh
       - name: Create MSI
         shell: pwsh
         env:
@@ -202,4 +217,3 @@ jobs:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
-
