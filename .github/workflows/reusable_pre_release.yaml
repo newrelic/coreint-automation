@@ -208,7 +208,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [test-nix, test-windows, test-integration-nix, builds-packages, publish]
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
