@@ -136,9 +136,12 @@ jobs:
           PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
         run: printf "%s" "$PFX_CERTIFICATE_BASE64" | base64 -d - > wincert.pfx
       - name: Download zip from GH Release assets and extract .exe
-        shell: pwsh
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          build\windows\download_zip_extract_exe.ps1 "$env:INTEGRATION" ${{ matrix.goarch }} "$env:TAG" "$env:REPO_FULL_NAME"
+          gh release download ${{ inputs.tag }} --pattern nri-${{ inputs.integration }}-${{ matrix.goarch }}.${TAG#v}.zip --output ./artifact.zip
+          7z x ./artifact.zip -o./dist/nri-${{ inputs.integration }}_windows_${{ matrix.goarch }}/
       - name: Download nrjmx
         if: ${{ inputs.windows_download_nrjmx }}
         shell: bash

@@ -18,15 +18,15 @@ on:
         required: true
       OHAI_PFX_PASSPHRASE:
         required: true
+env:
+  INTEGRATION: ${{ inputs.integration }}
+  REPO_FULL_NAME: ${{ github.event.repository.full_name }}
+  TAG: "v0.0.0"
 
 jobs:
   test-build-nix:
     name: Test binary compilation for all platforms:arch
     runs-on: ubuntu-20.04
-    env:
-      INTEGRATION: ${{ inputs.integration }}
-      REPO_FULL_NAME: ${{ github.event.repository.full_name }}
-      TAG: "v0.0.0"
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -37,7 +37,7 @@ jobs:
       - name: Build all platforms:arch
         run: make ci/fake-prerelease
       - name: Upload artifacts for next job
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-packages
           path: dist/nri-*.zip
@@ -46,52 +46,38 @@ jobs:
     name: Create MSI
     runs-on: windows-latest
     needs: [test-build-nix]
-    env:
-      INTEGRATION: ${{ inputs.integration }}
-      REPO_FULL_NAME: ${{ github.event.repository.full_name }}
-      TAG: "v0.0.0"
-      GOPATH: ${{ github.workspace }}
-      PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
-      PFX_CERTIFICATE_DESCRIPTION: 'New Relic'
-      PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
-    defaults:
-      run:
-        working-directory: src/github.com/${{ github.event.repository.full_name }}
     strategy:
       matrix:
         goarch: ${{ fromJSON(inputs.goarch_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: src/github.com/${{ github.event.repository.full_name }}
       - shell: bash
         run: git tag "$TAG"
-
       - name: Download artifact from previous job
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-packages
-          path: src/github.com/${{ github.event.repository.full_name }}/dist/
-
+      - name: Extract .exe
+        shell: bash
+        run: |
+          7z x nri-${{ inputs.integration }}-${{ matrix.goarch }}.${TAG#v}.zip -o./dist/nri-${{ inputs.integration }}_windows_${{ matrix.goarch }}/
       - name: Get PFX certificate from GH secrets
         shell: bash
+        env:
+          PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
         run: |
           if [ -z "$PFX_CERTIFICATE_BASE64" ]; then
             echo NO_SIGN=true >> $GITHUB_ENV
           else
             printf "%s" "$PFX_CERTIFICATE_BASE64" | base64 -d - > wincert.pfx
           fi
-
-      - name: Extract .exe
-        shell: pwsh
-        run: build\windows\extract_exe.ps1 "$env:INTEGRATION" ${{ matrix.goarch }} "$env:TAG"
-
       - name: Download nrjmx
         if: ${{ inputs.download_nrjmx }}
         shell: bash
         run: build/windows/download_nrjmx.sh
-
       - name: Create MSI
+        env:
+          PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
         shell: pwsh
-        run: build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch ${{ matrix.goarch }} -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "$env:PFX_CERTIFICATE_DESCRIPTION"
+        run: build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch ${{ matrix.goarch }} -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "New Relic"
