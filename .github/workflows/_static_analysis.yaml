@@ -18,5 +18,6 @@ jobs:
         continue-on-error: ${{ github.event_name != 'pull_request' }}
         with:
           only-new-issues: true
+          skip-cache: true
       - name: Check if CHANGELOG is valid
         uses: newrelic/release-toolkit/validate-markdown@v1
