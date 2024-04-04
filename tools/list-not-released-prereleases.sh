@@ -2,10 +2,7 @@
 
 set -euo pipefail
 
-ORG="newrelic";
-# https://docs.github.com/en/rest/teams/teams?apiVersion=2022-11-28#get-a-team-by-name
-# gh api /orgs/newrelic/teams/coreint | jq .id
-TEAM_ID="3626876";
+source "$(dirname $(readlink -f $0))/common-functions.sh"
 
 # Listing all repositories that start with `nri-` that belongs to coreint
 gh api --paginate "/teams/${TEAM_ID}/repos" --jq '.[] | select(.name | startswith("nri-")) | .name' | \
@@ -38,7 +35,9 @@ while read REPO_NAME; do
         TAG=$(jq -r .tagName <<<"${NON_PUBLISHED_PRERELEASES}") # Tag of the release
         URL=$(gh api --paginate "/repos/${ORG}/${REPO_NAME}/releases/tags/${TAG}" --jq '.html_url') # URL of the release
 
-        echo " > Prerelease found for ${REPO_NAME}: ${URL}"
-        echo "# gh release edit -R \"${ORG}/${REPO_NAME}\" \"$NAME\" --prerelease=false --latest"
+        echo "  >>>  Prerelease found for ${REPO_NAME}: ${URL}"
+        echo "       You can release it by running: \`gh release edit -R \"${ORG}/${REPO_NAME}\" \"$NAME\" --prerelease=false --latest'"
+        echo
+        reference_status "${ORG}/${REPO_NAME}" "${TAG}"
     fi
 done
