@@ -76,6 +76,8 @@ on:
         required: true
       COREINT_SLACK_CHANNEL:
         required: true
+      COREINT_BOT_TOKEN:
+        required: true
 
 env:
   # Build scripts inputs are mixed between this env vars and config args.
@@ -222,3 +224,9 @@ jobs:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
+      - uses: actions/checkout@v4
+      - name: Reflect failure in release title
+        env:
+          GH_TOKEN: "${{ COREINT_BOT_TOKEN }}"
+        run: |
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }} (not-ready)"
