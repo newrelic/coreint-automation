@@ -212,6 +212,12 @@ jobs:
           packageLocation: repo
           stagingRepo: true
           upgrade: false
+      - name: Update pre-release title
+        env:
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
+        run: |
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }}"
+
 
   notify-failure:
     if: ${{ always() && failure() }}
@@ -227,6 +233,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Reflect failure in release title
         env:
-          GH_TOKEN: "${{ COREINT_BOT_TOKEN }}"
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
         run: |
-          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }} (not-ready)"
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }} (pre-release-failure)"

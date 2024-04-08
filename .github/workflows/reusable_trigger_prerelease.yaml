@@ -113,7 +113,7 @@ jobs:
         env:
           GH_TOKEN: "${{ secrets.bot_token }}"
         run: |
-          gh release create ${{ steps.release-data.outputs.next-version }} --title ${{ steps.release-data.outputs.next-version }}  --target $(git rev-parse HEAD) --notes-file CHANGELOG.partial.md --prerelease
+          gh release create ${{ steps.release-data.outputs.next-version }} --title "${{ steps.release-data.outputs.next-version }} (artifacts-pending)"  --target $(git rev-parse HEAD) --notes-file CHANGELOG.partial.md --prerelease
       - name: Notify failure via Slack
         if: ${{ failure() }}
         uses: archive/github-actions-slack@master
