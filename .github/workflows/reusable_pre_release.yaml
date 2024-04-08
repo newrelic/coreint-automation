@@ -230,6 +230,12 @@ jobs:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
+
+  update-title-on-failure:
+    if: ${{ always() && failure() }}
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish]
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
       - name: Reflect failure in release title
         env:
