@@ -212,6 +212,7 @@ jobs:
           packageLocation: repo
           stagingRepo: true
           upgrade: false
+      - uses: actions/checkout@v4
       - name: Update pre-release title
         env:
           GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
