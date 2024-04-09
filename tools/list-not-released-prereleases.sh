@@ -36,8 +36,11 @@ while read REPO_NAME; do
         URL=$(gh api --paginate "/repos/${ORG}/${REPO_NAME}/releases/tags/${TAG}" --jq '.html_url') # URL of the release
 
         echo "  >>>  Prerelease found for ${REPO_NAME}: ${URL}"
-        echo "       You can release it by running: \`gh release edit -R \"${ORG}/${REPO_NAME}\" \"$NAME\" --prerelease=false --latest'"
+        echo "       You can release it by running: \`gh release edit -R \"${ORG}/${REPO_NAME}\" \"$TAG\" --prerelease=false --latest'"
         echo
+        if [ "$NAME" != "$TAG" ]; then
+            echo "⚠️ The pre-release for $TAG is not ready: $NAME" # A title different from the tag means the pre-release is not ready. Eg.: "vX.Y.Z (artifacts-pending)"
+        fi
         reference_status "${ORG}/${REPO_NAME}" "${TAG}"
     fi
 done
