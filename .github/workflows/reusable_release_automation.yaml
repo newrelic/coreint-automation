@@ -1,0 +1,115 @@
+name: Promote and Trigger Prerelease
+
+# This workflow encompasses two main functions:
+# 1. It checks for the latest successful prerelease, excluding any labeled with "artifacts-pending" or "pre-release-failure",
+#    and promotes it to a full release if suitable. This action should consequently trigger any workflows
+#    that respond to the 'released' event type, ultimately invoking 'reusable_on_release.yaml'.
+#
+# 2. It then triggers the creation of a new prerelease based on specified criteria and included files,
+#    fully automating the release cycle management.
+#
+# This workflow should be triggered merely from the default branch.
+# Manual prerelease creation is fully supported for exceptional cases.
+
+# Usage from the caller workflow:
+# jobs:
+#   release_management:
+#     uses: newrelic/coreint-automation/.github/workflows/reusable_release_automation.yaml@v3
+#     secrets:
+#       bot_token: ${{ secrets.bot_token }}
+#       slack_channel: ${{ secrets.slack_channel }}
+#       slack_token: ${{ secrets.slack_token }}
+
+on:
+  workflow_call:
+    inputs:
+      block_endpoint:
+        description: This endpoint should respond status 200 for the promotion to continue.
+        required: false
+        type: string
+        default: https://newrelic.github.io/coreint-automation/automatic_release_enable
+    secrets:
+      bot_token:
+        description: "github token"
+        required: true
+      slack_channel:
+        description: "slack channel for sending a message in case of failure"
+        required: true
+      slack_token:
+        description: "slack token for sending the message"
+        required: true
+
+jobs:
+  check_block_endpoint:
+    name: Check block endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check block endpoint
+        run: |
+          http_status=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.block_endpoint }}")
+
+          if [ "$http_status" != 200 ]; then
+            echo "Fail checking release block endpoint: ${{ inputs.block_endpoint }}"
+            exit 1
+          fi
+
+  promote_prerelease:
+    needs: check_block_endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote previous prerelease to release
+        env:
+          GH_TOKEN: "${{ secrets.bot_token }}"
+        run: |
+          # Get the date of the latest release.
+          LATEST_RELEASE=$(
+            gh release list --json publishedAt,isLatest -R "${{ github.repository }}" --jq '
+              .[] | select(.isLatest) | .publishedAt | fromdateiso8601
+            '
+          )
+
+          # List all releases, filter by prereleases that was made later than the latest release, sort by date,
+          # reverse because the last one is the most recent and only grab the last prerelease
+          NON_PUBLISHED_PRERELEASE=$(
+            gh release list --json name,publishedAt,isPrerelease,isLatest,tagName -R "${{ github.repository }}" --jq '
+              [
+                  .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE}'))
+              ]
+              | sort_by(.publishedAt |= fromdateiso8601) | reverse | first
+            '
+          )
+
+          # Get prerelease name
+          NON_PUBLISHED_PRERELEASE_NAME=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.name')
+
+          # Check specifically for "artifacts-pending" or "pre-release-failure" conditions
+          if [[ "$NON_PUBLISHED_PRERELEASE_NAME" == *"artifacts-pending"* || "$NON_PUBLISHED_PRERELEASE_NAME" == *"pre-release-failure"* ]]; then
+            echo "Prerelease $NON_PUBLISHED_PRERELEASE_NAME is blocked due to 'artifacts-pending' or 'pre-release-failure'."
+            # Setting an environment variable for conditional steps later on
+            echo "SHOULD_NOTIFY=1" >> $GITHUB_ENV
+          else
+            PRERELEASE_TAG=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.tagName')
+
+            # Promote the prerelease to a full release
+            gh release edit "$PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
+
+            echo "SHOULD_NOTIFY=0" >> $GITHUB_ENV
+          fi
+
+      - name: Notify failure via Slack
+        if: env.SHOULD_NOTIFY == '1'
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
+          slack-channel: ${{ secrets.slack_channel }}
+          slack-text: "❌ `${{ github.event.repository.full_name }}`: [promote prerelease failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})"
+
+  trigger_prerelease:
+    needs: promote_prerelease
+    uses: ./.github/workflows/reusable_trigger_prerelease.yaml
+    secrets:
+      bot_token: ${{ secrets.bot_token }}
+      slack_channel: ${{ secrets.slack_channel }}
+      slack_token: ${{ secrets.slack_token }}
+    with:
+      rt-included-files: go.mod,go.sum,build/Dockerfile
