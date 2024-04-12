@@ -1,4 +1,4 @@
-name: Promote and Trigger Prerelease
+name: Release automation
 
 # This workflow encompasses two main functions:
 # 1. It checks for the latest successful prerelease, excluding any labeled with "artifacts-pending" or "pre-release-failure",
@@ -7,18 +7,12 @@ name: Promote and Trigger Prerelease
 #
 # 2. It then triggers the creation of a new prerelease based on specified criteria and included files,
 #    fully automating the release cycle management.
-#
-# This workflow should be triggered merely from the default branch.
-# Manual prerelease creation is fully supported for exceptional cases.
 
 # Usage from the caller workflow:
 # jobs:
 #   release_management:
 #     uses: newrelic/coreint-automation/.github/workflows/reusable_release_automation.yaml@v3
-#     secrets:
-#       bot_token: ${{ secrets.bot_token }}
-#       slack_channel: ${{ secrets.slack_channel }}
-#       slack_token: ${{ secrets.slack_token }}
+#     secrets: inherit
 
 on:
   workflow_call:
@@ -28,16 +22,6 @@ on:
         required: false
         type: string
         default: https://newrelic.github.io/coreint-automation/automatic_release_enable
-    secrets:
-      bot_token:
-        description: "github token"
-        required: true
-      slack_channel:
-        description: "slack channel for sending a message in case of failure"
-        required: true
-      slack_token:
-        description: "slack token for sending the message"
-        required: true
 
 jobs:
   check_block_endpoint:
@@ -59,7 +43,7 @@ jobs:
     steps:
       - name: Promote previous prerelease to release
         env:
-          GH_TOKEN: "${{ secrets.bot_token }}"
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
         run: |
           # Get the date of the latest release.
           LATEST_RELEASE=$(
@@ -79,37 +63,35 @@ jobs:
             '
           )
 
-          # Get prerelease name
+          # Extract the name and tag from the latest prerelease
           NON_PUBLISHED_PRERELEASE_NAME=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.name')
+          NON_PUBLISHED_PRERELEASE_TAG=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.tagName')    
 
-          # Check specifically for "artifacts-pending" or "pre-release-failure" conditions
-          if [[ "$NON_PUBLISHED_PRERELEASE_NAME" == *"artifacts-pending"* || "$NON_PUBLISHED_PRERELEASE_NAME" == *"pre-release-failure"* ]]; then
-            echo "Prerelease $NON_PUBLISHED_PRERELEASE_NAME is blocked due to 'artifacts-pending' or 'pre-release-failure'."
-            # Setting an environment variable for conditional steps later on
-            echo "SHOULD_NOTIFY=1" >> $GITHUB_ENV
-          else
-            PRERELEASE_TAG=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.tagName')
-
+          # Check if the prerelease name matches its tag and promote if they are the same
+          if [[ "$NON_PUBLISHED_PRERELEASE_NAME" == "$NON_PUBLISHED_PRERELEASE_TAG" ]]; then
             # Promote the prerelease to a full release
-            gh release edit "$PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
-
+            gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
             echo "SHOULD_NOTIFY=0" >> $GITHUB_ENV
+          else
+            # Do not promote and set to notify
+            echo "Prerelease $NON_PUBLISHED_PRERELEASE_NAME is blocked since it does not match with $NON_PUBLISHED_PRERELEASE_TAG"
+            echo "SHOULD_NOTIFY=1" >> $GITHUB_ENV
           fi
 
       - name: Notify failure via Slack
         if: env.SHOULD_NOTIFY == '1'
         uses: archive/github-actions-slack@master
         with:
-          slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
-          slack-channel: ${{ secrets.slack_channel }}
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [promote prerelease failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})"
 
   trigger_prerelease:
     needs: promote_prerelease
     uses: ./.github/workflows/reusable_trigger_prerelease.yaml
     secrets:
-      bot_token: ${{ secrets.bot_token }}
-      slack_channel: ${{ secrets.slack_channel }}
-      slack_token: ${{ secrets.slack_token }}
+      bot_token: ${{ secrets.COREINT_BOT_TOKEN }}
+      slack_channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+      slack_token: ${{ secrets.COREINT_SLACK_TOKEN }}
     with:
       rt-included-files: go.mod,go.sum,build/Dockerfile
