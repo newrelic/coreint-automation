@@ -74,19 +74,17 @@ jobs:
           NON_PUBLISHED_PRERELEASE_NAME=$(jq -r '.name' <<<"$NON_PUBLISHED_PRERELEASE")
           NON_PUBLISHED_PRERELEASE_TAG=$(jq -r '.tagName' <<<"$NON_PUBLISHED_PRERELEASE")
 
-          # Check if the prerelease name matches its tag and promote if they are the same. In case the prerelase is labeled
+          # Check if the prerelease name matches its tag. Only promote if they are identical. So, in case the prerelase is labeled
           # with "artifacts-pending" or "pre-release-failure" suffixes, it will fail.
-          if [[ "$NON_PUBLISHED_PRERELEASE_NAME" == "$NON_PUBLISHED_PRERELEASE_TAG" ]]; then
-            # Promote the prerelease to a full release
-            gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
-          else
-            # Do not promote and set to notify
+          if [[ "$NON_PUBLISHED_PRERELEASE_NAME" != "$NON_PUBLISHED_PRERELEASE_TAG" ]]; then
             echo "Prerelease $NON_PUBLISHED_PRERELEASE_NAME is blocked since it does not match with $NON_PUBLISHED_PRERELEASE_TAG"
             exit 1
           fi
 
+          gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
+
       - name: Notify failure via Slack
-        if: ${{ always() && failure() }}
+        if: failure()
         uses: archive/github-actions-slack@master
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
@@ -94,6 +92,7 @@ jobs:
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [promote prerelease failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})"
 
   trigger_prerelease:
+    if: always()
     needs: promote_prerelease
     uses: ./.github/workflows/reusable_trigger_prerelease.yaml
     secrets:
