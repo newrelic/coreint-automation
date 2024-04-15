@@ -22,6 +22,13 @@ on:
         required: false
         type: string
         default: https://newrelic.github.io/coreint-automation/automatic_release_enable
+    secrets:
+      COREINT_BOT_TOKEN:
+        required: true
+      COREINT_SLACK_CHANNEL:
+        required: true
+      COREINT_SLACK_TOKEN:
+        required: true
 
 jobs:
   check_block_endpoint:
@@ -46,40 +53,40 @@ jobs:
           GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
         run: |
           # Get the date of the latest release.
-          LATEST_RELEASE=$(
+          LATEST_RELEASE_DATE=$(
             gh release list --json publishedAt,isLatest -R "${{ github.repository }}" --jq '
               .[] | select(.isLatest) | .publishedAt | fromdateiso8601
             '
           )
 
-          # List all releases, filter by prereleases that was made later than the latest release, sort by date,
+          # List all releases, filter by prereleases that were made later than the latest release, sort by date,
           # reverse because the last one is the most recent and only grab the last prerelease
           NON_PUBLISHED_PRERELEASE=$(
-            gh release list --json name,publishedAt,isPrerelease,isLatest,tagName -R "${{ github.repository }}" --jq '
+            gh release list --json name,publishedAt,isPrerelease,tagName -R "${{ github.repository }}" --order desc --jq '
               [
-                  .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE}'))
+                  .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE_DATE}'))
               ]
-              | sort_by(.publishedAt |= fromdateiso8601) | reverse | first
+              | sort_by(.publishedAt |= fromdateiso8601) | first
             '
           )
 
           # Extract the name and tag from the latest prerelease
-          NON_PUBLISHED_PRERELEASE_NAME=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.name')
-          NON_PUBLISHED_PRERELEASE_TAG=$(echo "$NON_PUBLISHED_PRERELEASE" | jq -r '.tagName')    
+          NON_PUBLISHED_PRERELEASE_NAME=$(jq -r '.name' <<<"$NON_PUBLISHED_PRERELEASE")
+          NON_PUBLISHED_PRERELEASE_TAG=$(jq -r '.tagName' <<<"$NON_PUBLISHED_PRERELEASE")
 
-          # Check if the prerelease name matches its tag and promote if they are the same
+          # Check if the prerelease name matches its tag and promote if they are the same. In case the prerelase is labeled
+          # with "artifacts-pending" or "pre-release-failure" suffixes, it will fail.
           if [[ "$NON_PUBLISHED_PRERELEASE_NAME" == "$NON_PUBLISHED_PRERELEASE_TAG" ]]; then
             # Promote the prerelease to a full release
             gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
-            echo "SHOULD_NOTIFY=0" >> $GITHUB_ENV
           else
             # Do not promote and set to notify
             echo "Prerelease $NON_PUBLISHED_PRERELEASE_NAME is blocked since it does not match with $NON_PUBLISHED_PRERELEASE_TAG"
-            echo "SHOULD_NOTIFY=1" >> $GITHUB_ENV
+            exit 1
           fi
 
       - name: Notify failure via Slack
-        if: env.SHOULD_NOTIFY == '1'
+        if: ${{ always() && failure() }}
         uses: archive/github-actions-slack@master
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}

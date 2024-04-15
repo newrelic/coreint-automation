@@ -8,7 +8,7 @@ source "$(dirname $(readlink -f $0))/common-functions.sh"
 gh api --paginate "/teams/${TEAM_ID}/repos" --jq '.[] | select(.name | startswith("nri-")) | .name' | \
 while read REPO_NAME; do
     # Get the date of the latest release.
-    LATEST_RELEASE=$(
+    LATEST_RELEASE_DATE=$(
         gh release list --json publishedAt,isLatest -R "${ORG}/${REPO_NAME}" --jq '
             .[] | select(.isLatest) | .publishedAt | fromdateiso8601
         '
@@ -17,11 +17,11 @@ while read REPO_NAME; do
     # List all releases, filter by prereleases that was made later than the latest release, sort by date,
     # reverse because the last one is the most recent and only grab the last prerelease
     NON_PUBLISHED_PRERELEASES=$(
-        gh release list --json name,publishedAt,isPrerelease,isLatest,tagName -R "${ORG}/${REPO_NAME}" --jq '
+        gh release list --json name,publishedAt,isPrerelease,tagName -R "${ORG}/${REPO_NAME}" --order desc --jq '
             [
-                .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE}'))
+                .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE_DATE}'))
             ]
-            | sort_by(.publishedAt |= fromdateiso8601) | reverse | first
+            | sort_by(.publishedAt |= fromdateiso8601) | first
         '
     )
     if ! [ -z "${NON_PUBLISHED_PRERELEASES}" ]; then
