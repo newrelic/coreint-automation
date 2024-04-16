@@ -48,7 +48,7 @@ jobs:
     needs: check_block_endpoint
     runs-on: ubuntu-latest
     steps:
-      - name: Promote previous prerelease to release
+      - name: Promote latest prerelease to release
         env:
           GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
         run: |
@@ -81,7 +81,7 @@ jobs:
             exit 1
           fi
 
-          gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false
+          gh release edit "$NON_PUBLISHED_PRERELEASE_TAG" --repo "${{ github.repository }}" --draft=false --prerelease=false --latest
 
       - name: Notify failure via Slack
         if: failure()
