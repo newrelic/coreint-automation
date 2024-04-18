@@ -22,6 +22,26 @@ on:
         required: false
         type: string
         default: https://newrelic.github.io/coreint-automation/automatic_release_enable
+      rt-excluded-dirs:
+        description: Release-toolkit excluded-dirs field.
+        required: false
+        type: string
+        default: ""
+      rt-excluded-files:
+        description: Release-toolkit excluded-files field.
+        required: false
+        type: string
+        default: ""
+      rt-included-dirs:
+        description: Release-toolkit included-dirs field.
+        required: false
+        type: string
+        default: ""
+      rt-included-files:
+        description: Release-toolkit included-files field.
+        required: false
+        type: string
+        default: go.mod,go.sum,build/Dockerfile
     secrets:
       COREINT_BOT_TOKEN:
         required: true
@@ -100,4 +120,7 @@ jobs:
       slack_channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
       slack_token: ${{ secrets.COREINT_SLACK_TOKEN }}
     with:
-      rt-included-files: go.mod,go.sum,build/Dockerfile
+      excluded-dirs: "${{ inputs.rt-excluded-dirs }}"
+      excluded-files: "${{ inputs.rt-excluded-files }}"
+      included-dirs: "${{ inputs.rt-included-dirs }}"
+      included-files: "${{ inputs.rt-included-files }}"
