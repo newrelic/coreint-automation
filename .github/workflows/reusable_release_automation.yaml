@@ -120,7 +120,7 @@ jobs:
       slack_channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
       slack_token: ${{ secrets.COREINT_SLACK_TOKEN }}
     with:
-      excluded-dirs: "${{ inputs.rt-excluded-dirs }}"
-      excluded-files: "${{ inputs.rt-excluded-files }}"
-      included-dirs: "${{ inputs.rt-included-dirs }}"
-      included-files: "${{ inputs.rt-included-files }}"
+      rt-excluded-dirs: "${{ inputs.rt-excluded-dirs }}"
+      rt-excluded-files: "${{ inputs.rt-excluded-files }}"
+      rt-included-dirs: "${{ inputs.rt-included-dirs }}"
+      rt-included-files: "${{ inputs.rt-included-files }}"
