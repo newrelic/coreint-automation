@@ -55,6 +55,8 @@ on:
         required: true
       COREINT_SLACK_CHANNEL:
         required: true
+      COREINT_BOT_TOKEN:
+        required: true
 
 jobs:
   publish-to-s3:
@@ -92,6 +94,14 @@ jobs:
           integration: 'nri-${{ inputs.integration }}'
           packageLocation: repo
           upgrade: false
+      - uses: actions/checkout@v4
+      - name: Update pre-release title
+        env:
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
+        ## This is needed to delete "-release-failure" after a re-run
+        run: |
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }}"
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [publish-to-s3]
@@ -103,3 +113,15 @@ jobs:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: "❌ `${{ github.event.repository.full_name }}`: [release pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
+
+  update-title-on-failure:
+    if: ${{ always() && failure() }}
+    needs: [publish-to-s3]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reflect failure in release title
+        env:
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
+        run: |
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }} (release-failure)"
