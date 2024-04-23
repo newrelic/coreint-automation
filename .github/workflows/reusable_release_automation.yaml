@@ -90,6 +90,12 @@ jobs:
             '
           )
 
+          # Check if a valid prerelease was found
+          if [ -z "$NON_PUBLISHED_PRERELEASE" ]; then
+            echo "No prerelease found to promote."
+            exit 0  # Exit with success since there's nothing to do
+          fi
+
           # Extract the name and tag from the latest prerelease
           NON_PUBLISHED_PRERELEASE_NAME=$(jq -r '.name' <<<"$NON_PUBLISHED_PRERELEASE")
           NON_PUBLISHED_PRERELEASE_TAG=$(jq -r '.tagName' <<<"$NON_PUBLISHED_PRERELEASE")
