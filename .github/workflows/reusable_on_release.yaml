@@ -92,6 +92,12 @@ jobs:
           integration: 'nri-${{ inputs.integration }}'
           packageLocation: repo
           upgrade: false
+      - name: Notify successful release
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "🎉 `${{ github.event.repository.full_name }}`: release promoted successfully! ${{ github.server_url }}/${{ github.event.repository.full_name }/releases/tag/${{ inputs.tag }}"
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [publish-to-s3]
