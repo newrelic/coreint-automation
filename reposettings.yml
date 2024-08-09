@@ -1,133 +1,130 @@
-# Coreint settings
-
-labels-common: &labels-common
-  bug:
-    color: e11d21
-    description: Categorizes issue or PR as related to a bug.
-    replaces: [ kind/bug ]
-  cleanup:
-    color: c7def8
-    description: Categorizes issue or PR as related to cleaning up code, process, or technical debt.
-    replaces: [ kind/cleanup ]
-  sustain:
-    color: c7def8
-    description: Categorizes issue or PR as related to sustainability.
-    replaces: [ kind/sustain ]
-  deprecation:
-    color: e11d21
-    description: Categorizes issue or PR as related to a feature/enhancement marked for deprecation.
-    replaces: [ kind/deprecation ]
-  design:
-    color: c7def8
-    description: Categorizes issue or PR as related to design.
-    replaces: [ kind/design ]
-  documentation:
-    color: 0075ca
-    description: Categorizes issue or PR as related to documentation.
-    replaces: [ kind/documentation, doc ]
-  test:
-    color: e11d21
-    description: Categorizes issue or PR as related to a consistently or frequently failing test.
-    replaces: [ kind/test ]
-  feature request:
-    color: c7def8
-    description: Categorizes issue or PR as related to a new feature or enhancement.
-    replaces: [ kind/feature, enhancement, feature ]
-  regression:
-    color: e11d21
-    description: Categorizes issue or PR as related to a regression from a prior release.
-    replaces: [ kind/regression ]
-  support:
-    color: d876e3
-    description: Categorizes issue or PR as a support question.
-    replaces: [ kind/support, question ]
-
-  triage/pending:
-    color: 1D76DB
-    description: Issue or PR is pending for triage and prioritization.
-    replaces: [ triage/needed ]
-  triage/in-progress:
-    color: 1D76DB
-    description: Issue or PR is in the process of being triaged.
-  triage/accepted:
-    color: 8fc951
-    description: Indicates an issue or PR is ready to be actively worked on.
-  triage/duplicate:
-    color: cfd3d7
-    description: Indicates an issue is a duplicate of other open issue.
-    replaces: [ duplicate, dupe ]
-  triage/needs-information:
-    color: d455d0
-    description: Indicates an issue needs more information in order to work on it.
-    replaces: [ needs-information, needs-more-information ]
-  triage/not-reproducible:
-    color: d455d0
-    description: Indicates an issue can not be reproduced as described.
-    replaces: [ not-reproducible, cannot-reproduce ]
-  triage/as-intended:
-    color: ffffff
-    description: Indicates an issue that can not or will not be resolved.
-    replaces: [ wontfix, triage/wontfix ]
-
-  priority/backlog:
-    color: fbca04
-    description: Generalistic priority.
-  priority/critical:
-    color: e11d21
-    description: Highest priority. Must be actively worked on as someone's top priority right now.
-  priority/long-term:
-    color: ffaa04
-    description: Important over the long term, but may not be staffed and/or may need multiple releases to complete.
-  priority/short-term:
-    color: eb6420
-    description: Must be staffed and worked on either currently, or very soon, ideally in time for the next release.
-
-  Epic: # Created by ZenHub, no need to touch
-    color: 3E4B9E
-
-  repolinter: # Used across all open-source NR repos
-    color: fbca04
-  good first issue:
-    color: 7057ff
-  dependencies: # Added by dependabot
-    color: 0366D6
-  breaking:
-    color: B60205
-  do-not-merge:
-    color: B60205
-
-  ci/skip-e2e:
-    color: E2E2E2
-    description: E2E tests will be skipped for this PR
-  ci/skip-load-test:
-    color: AE5904
-    description: Load tests will be skipped for this PR
-
 coreint-settings: &coreint-settings
-  branch-protection:
-    dissmiss-stale-reviews: false
-    required-review-count: 1
-    required-linear-history: true
-    enforce-admins: true
-    block-creations: true  # As of today, in the UI, this is called "Restrict pushes that create matching branches".
-    required-pull-request-reviews:
-      bypass-pull-request-allowances:  # As of today, in the UI, this is called "Allow specified actors to bypass required pull requests".
-        users:
-          - newrelic-coreint-bot
-        apps:
-          - renovate
-    push-restrictions:
-      users:
-        - newrelic-coreint-bot
-      apps:
-        - renovate
-  allow:
-    squash-merge: true
-    merge-commit: false
-    rebase-merge: false
-  delete-branch-on-merge: true
-  protect-default-brach: true
-  labels: *labels-common
+  # branch-protection:
+  #   dissmiss-stale-reviews: false
+  #   required-review-count: 1
+  #   required-linear-history: true
+  #   enforce-admins: true
+  #   block-creations: true  # As of today, in the UI, this is called "Restrict pushes that create matching branches".
+  #   required-pull-request-reviews:
+  #     bypass-pull-request-allowances:  # As of today, in the UI, this is called "Allow specified actors to bypass required pull requests".
+  #       users:
+  #         - newrelic-coreint-bot
+  #       apps:
+  #         - renovate
+  #   push-restrictions:
+  #     users:
+  #       - newrelic-coreint-bot
+  #     apps:
+  #       - renovate
+  # allow:
+  #   squash-merge: true
+  #   merge-commit: false
+  #   rebase-merge: false
+  # delete-branch-on-merge: true
+  # protect-default-brach: true
+
+  labels:
+    bug:
+      color: e11d21
+      description: Categorizes issue or PR as related to a bug.
+      replaces: [ kind/bug ]
+    cleanup:
+      color: c7def8
+      description: Categorizes issue or PR as related to cleaning up code, process, or technical debt.
+      replaces: [ kind/cleanup ]
+    sustain:
+      color: c7def8
+      description: Categorizes issue or PR as related to sustainability.
+      replaces: [ kind/sustain ]
+    deprecation:
+      color: e11d21
+      description: Categorizes issue or PR as related to a feature/enhancement marked for deprecation.
+      replaces: [ kind/deprecation ]
+    design:
+      color: c7def8
+      description: Categorizes issue or PR as related to design.
+      replaces: [ kind/design ]
+    documentation:
+      color: 0075ca
+      description: Categorizes issue or PR as related to documentation.
+      replaces: [ kind/documentation, doc ]
+    test:
+      color: e11d21
+      description: Categorizes issue or PR as related to a consistently or frequently failing test.
+      replaces: [ kind/test ]
+    feature request:
+      color: c7def8
+      description: Categorizes issue or PR as related to a new feature or enhancement.
+      replaces: [ kind/feature, enhancement, feature ]
+    regression:
+      color: e11d21
+      description: Categorizes issue or PR as related to a regression from a prior release.
+      replaces: [ kind/regression ]
+    support:
+      color: d876e3
+      description: Categorizes issue or PR as a support question.
+      replaces: [ kind/support, question ]
+
+    triage/pending:
+      color: 1D76DB
+      description: Issue or PR is pending for triage and prioritization.
+      replaces: [ triage/needed ]
+    triage/in-progress:
+      color: 1D76DB
+      description: Issue or PR is in the process of being triaged.
+    triage/accepted:
+      color: 8fc951
+      description: Indicates an issue or PR is ready to be actively worked on.
+    triage/duplicate:
+      color: cfd3d7
+      description: Indicates an issue is a duplicate of other open issue.
+      replaces: [ duplicate, dupe ]
+    triage/needs-information:
+      color: d455d0
+      description: Indicates an issue needs more information in order to work on it.
+      replaces: [ needs-information, needs-more-information ]
+    triage/not-reproducible:
+      color: d455d0
+      description: Indicates an issue can not be reproduced as described.
+      replaces: [ not-reproducible, cannot-reproduce ]
+    triage/as-intended:
+      color: ffffff
+      description: Indicates an issue that can not or will not be resolved.
+      replaces: [ wontfix, triage/wontfix ]
+
+    priority/backlog:
+      color: fbca04
+      description: Generalistic priority.
+    priority/critical:
+      color: e11d21
+      description: Highest priority. Must be actively worked on as someone's top priority right now.
+    priority/long-term:
+      color: ffaa04
+      description: Important over the long term, but may not be staffed and/or may need multiple releases to complete.
+    priority/short-term:
+      color: eb6420
+      description: Must be staffed and worked on either currently, or very soon, ideally in time for the next release.
+
+    Epic: # Created by ZenHub, no need to touch
+      color: 3E4B9E
+
+    repolinter: # Used across all open-source NR repos
+      color: fbca04
+    good first issue:
+      color: 7057ff
+    dependencies: # Added by dependabot/renovatebot
+      color: 0366D6
+    breaking:
+      color: B60205
+    do-not-merge:
+      color: B60205
+
+    ci/skip-e2e:
+      color: E2E2E2
+      description: E2E tests will be skipped for this PR
+    ci/skip-load-test:
+      color: AE5904
+      description: Load tests will be skipped for this PR
 
 repos:
   newrelic/coreint-automation: *coreint-settings
