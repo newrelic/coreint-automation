@@ -4,14 +4,6 @@
 
 This repository acts as a place to put actions automating tasks for the Core Integrations team.
 
-## Deployed actions
-
-### Reposettings
-
-Upstream: [txqueuelen/reposettings](https://github.com/txqueuelen/reposettings)
-
-Reposettings reads a YAML file and ensures that repositories match the specified config.
-
 ## Shared Workflows
 
 All Workflows located under .github/workflows with prefix `reusable_` are meant to be used by external repos (mainly ohi).
@@ -83,6 +75,15 @@ If you believe you have found a security vulnerability in this project or any of
 If you would like to contribute to this project, review [these guidelines](./CONTRIBUTING.md).
 
 To all contributors, we thank you!  Without your contribution, this project would not be what it is today.  We also host a community project page dedicated to [Project Name](<LINK TO https://opensource.newrelic.com/projects/... PAGE>).
+
+## Deprecated
+
+### Reposettings
+
+Upstream: [txqueuelen/reposettings](https://github.com/txqueuelen/reposettings)
+
+Reposettings reads a YAML file and ensures that repositories match the specified config. It is deprecated because there is an organization level policy that forces branch protections. I leave the configuration
+just in case we need to set labels globally in a easy way. But the workflow that runs the cronjob has been removed.
 
 ## Support
 
