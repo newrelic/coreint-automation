@@ -1,7 +1,7 @@
 # This file must be used with "source common.sh". You cannot run it directly
 if [ "${BASH_SOURCE-}" = "$0" ]; then
     echo "You must source this script: \$ source $0" >&2
-    exit 1
+    return
 fi
 
 ORG="newrelic";
