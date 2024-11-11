@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 0 * * *' # Update daily at 00:00 - before scheduled trivy scan
   workflow_dispatch:  # Allow manual triggering
+  workflow_call:      # Allow being called
 
 jobs:
   update-trivy-db:
