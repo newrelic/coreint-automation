@@ -35,9 +35,8 @@ jobs:
           skip-dirs: "${{ inputs.skip-dirs }}"
           skip-files: "${{ inputs.skip-files }}"
         env:
-          # dbs are downloaded async in download_trivy_db.yml
-          TRIVY_SKIP_DB_UPDATE: true
-          TRIVY_SKIP_JAVA_DB_UPDATE: true
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db
 
       - name: Run Trivy vulnerability scanner sarif output
         uses: aquasecurity/trivy-action@0.28.0
@@ -52,9 +51,8 @@ jobs:
           skip-dirs: "${{ inputs.skip-dirs }}"
           skip-files: "${{ inputs.skip-files }}"
         env:
-          # dbs are downloaded async in download_trivy_db.yml
-          TRIVY_SKIP_DB_UPDATE: true
-          TRIVY_SKIP_JAVA_DB_UPDATE: true
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
