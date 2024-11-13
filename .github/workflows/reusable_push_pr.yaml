@@ -9,6 +9,10 @@ on:
       integration:
         required: false
         type: string
+      run_test_nix:
+        required: false
+        type: boolean
+        default: true
       run_test_windows:
         required: false
         type: boolean
@@ -44,6 +48,7 @@ jobs:
     uses: ./.github/workflows/_static_analysis.yaml
 
   test-nix:
+    if: ${{ inputs.run_test_nix }}
     uses: ./.github/workflows/_test_nix.yaml
 
   test-windows:
