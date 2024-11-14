@@ -1,7 +1,8 @@
-# Use Ubuntu 16.04 as the base image
-FROM ubuntu:16.04
+ARG UBUNTU_VERSION=16.04
 
-# Define Go version
+# Use Ubuntu as the base image
+FROM ubuntu:${UBUNTU_VERSION}
+
 ARG GO_VERSION=1.23.2
 ARG ARCH='amd64'
 ARG GH_VERSION='2.61.0'
