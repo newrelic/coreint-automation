@@ -12,6 +12,10 @@ jobs:
     name: Build and Push Builder Image
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        go-version: [1.22.9, 1.23.2, 1.23.3] # Create a matrix of Go versions to build images for
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,7 +41,9 @@ jobs:
         with:
           context: .
           file: build/Dockerfile
+          build-args: |
+            GO_VERSION=${{ matrix.go-version }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ env.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ env.VERSION }}-go${{ matrix.go-version }}
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest-go${{ matrix.go-version }}
