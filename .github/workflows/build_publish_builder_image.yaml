@@ -4,8 +4,16 @@ on:
   push:
     branches:
       - main
-      - master
-      - feat/fips-image-and-workflow # for testing purposes
+  workflow_dispatch:
+    inputs:
+      go-version:
+        description: 'Go version'
+        required: false
+        default: ''
+      ubuntu-version:
+        description: 'Ubuntu version'
+        required: false
+        default: ''
 
 jobs:
   build-and-push:
@@ -14,8 +22,8 @@ jobs:
 
     strategy:
       matrix:
-        go-version: [1.22.9, 1.23.2, 1.23.3] # Create a matrix of Go versions to build images for
-        ubuntu-version: [16.04] # Create a matrix of Ubuntu versions to build images for
+        go-version: [1.22.9, 1.23.2]
+        ubuntu-version: [16.04]
 
     steps:
       - name: Checkout repository
@@ -36,6 +44,20 @@ jobs:
         run: |
           VERSION="${{ github.run_number }}-$(date +'%Y%m%d%H%M%S')"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+      
+      - name: Set Go and Ubuntu versions
+        id: set_versions
+        run: |
+          if [ "${{ github.event.inputs.go-version }}" != "" ]; then
+            echo "GO_VERSION=${{ github.event.inputs.go-version }}" >> $GITHUB_ENV
+          else
+            echo "GO_VERSION=${{ matrix.go-version }}" >> $GITHUB_ENV
+          fi
+          if [ "${{ github.event.inputs.ubuntu-version }}" != "" ]; then
+            echo "UBUNTU_VERSION=${{ github.event.inputs.ubuntu-version }}" >> $GITHUB_ENV
+          else
+            echo "UBUNTU_VERSION=${{ matrix.ubuntu-version }}" >> $GITHUB_ENV
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
