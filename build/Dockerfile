@@ -37,7 +37,7 @@ RUN curl -sSL https://golang.org/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -o go${
     rm go${GO_VERSION}.linux-${ARCH}.tar.gz
 
 # Set Go environment variables
-ENV PATH="/usr/local/go/bin:${PATH}"
+ENV PATH="/usr/local/go/bin:/go/bin:${PATH}"
 ENV GOPATH="/go"
 
 # Default value of -buildvcs is auto, more info:
