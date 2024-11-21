@@ -40,7 +40,8 @@ RUN curl -sSL https://golang.org/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -o go${
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
 
-# Optional: Set Go environment flags
+# Default value of -buildvcs is auto, more info:
+# https://github.com/kubernetes-sigs/gateway-api/pull/2302#issuecomment-1855818388
 ENV GOFLAGS="-buildvcs=false"
 
 # Since the user does not match the owners of the repo "git rev-parse --is-inside-work-tree" fails and goreleaser does not populate projectName
