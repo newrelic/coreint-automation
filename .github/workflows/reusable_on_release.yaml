@@ -107,7 +107,7 @@ jobs:
           disable_lock: false
           run_id: ${{ github.run_id }}
           tag: ${{ inputs.tag }}
-          app_name: "nri-${{ inputs.integration }}"
+          app_name: "nri-${{ inputs.integration }}-fips"
           repo_name: ${{ github.event.repository.full_name }}
           access_point_host: "production"
           schema: ${{ inputs.publish_schema_fips }}
