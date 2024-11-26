@@ -37,6 +37,21 @@ on:
         type: string
         required: false
         default: ""
+      upload_fips_packages:
+        description: Defines if the FIPS packages should be uploaded to S3
+        type: boolean
+        required: false
+        default: false
+      publish_schema_fips:
+        description: Defines the schema for the publish_action for FIPS packages.
+        type: string
+        required: false
+        default: "ohi-fips"
+      publish_schema_url_fips:
+        description: Defines the schema_url for the publish_action for FIPS packages (it requires publish_schema_fips='custom')
+        type: string
+        required: false
+        default: ""
 
     secrets: # uppercase secrets to match the already defined organization secrets
       OHAI_AWS_ROLE_ARN_PRODUCTION:
@@ -73,6 +88,30 @@ jobs:
           access_point_host: "production"
           schema: ${{ inputs.publish_schema }}
           schema_url: ${{ inputs.publish_schema_url }}
+          aws_region: "us-east-1"
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: "nr-downloads-main"
+          # used for locking in case of concurrent releases
+          aws_s3_lock_bucket_name: "onhost-ci-lock"
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      - name: Publish to S3 action - fips
+        if: ${{ inputs.upload_fips_packages }}
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          # lock enabled
+          disable_lock: false
+          run_id: ${{ github.run_id }}
+          tag: ${{ inputs.tag }}
+          app_name: "nri-${{ inputs.integration }}-fips"
+          repo_name: ${{ github.event.repository.full_name }}
+          access_point_host: "production"
+          schema: ${{ inputs.publish_schema_fips }}
+          schema_url: ${{ inputs.publish_schema_url_fips }}
           aws_region: "us-east-1"
           aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
           aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
