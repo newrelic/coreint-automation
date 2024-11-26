@@ -145,6 +145,12 @@ jobs:
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
+      - name: Test package installability - fips
+        if: ${{ inputs.test_package && inputs.upload_fips_packages }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: "nri-${{ inputs.integration }}-fips"
 
   build-win-packages:
     name: Create MSI & Upload into GH Release assets
@@ -258,6 +264,15 @@ jobs:
         with:
           tag: ${{ inputs.tag }}
           integration: 'nri-${{ inputs.integration }}'
+          packageLocation: repo
+          stagingRepo: true
+          upgrade: false
+      - name: Test package from Staging repo - fips
+        if: ${{ inputs.test_package && inputs.upload_fips_packages }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: 'nri-${{ inputs.integration }}-fips'
           packageLocation: repo
           stagingRepo: true
           upgrade: false

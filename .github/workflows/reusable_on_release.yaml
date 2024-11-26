@@ -131,6 +131,14 @@ jobs:
           integration: 'nri-${{ inputs.integration }}'
           packageLocation: repo
           upgrade: false
+      - name: Test package from prod repo - fips
+        if: ${{ inputs.test_package && inputs.upload_fips_packages }}
+        uses: newrelic/integrations-pkg-test-action/linux@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: 'nri-${{ inputs.integration }}-fips'
+          packageLocation: repo
+          upgrade: false
       - name: Notify successful release
         uses: archive/github-actions-slack@master
         with:
