@@ -16,6 +16,7 @@
       "extractVersionTemplate": "(?<version>1\\.22\\.\\d+)"
     },
     {
+      "customType": "regex",
       "fileMatch": ["^\\.github/workflows/build_publish_builder_image\\.yaml$"],
       "matchStrings": [
         "go-version:\\s*\\[\\s*(?<currentValue1>1\\.22\\.\\d+),\\s*(?<currentValue2>1\\.23\\.\\d+)\\s*\\]"
