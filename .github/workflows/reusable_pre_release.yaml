@@ -77,7 +77,7 @@ on:
         description: "destination s3 path prefix for pushing the artifacts"
         required: false
         type: string
-        default: "infrastructure_agent/"
+        default: "infrastructure_agent"
 
     secrets:
       OHAI_AWS_ROLE_ARN_STAGING:
@@ -141,10 +141,11 @@ jobs:
         run: make ci/prerelease
       - name: Test package installability
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@v1 #TODO update v1 to latest release after merging and releasing the integrations-pkg-test-action destPrefix changes
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
+          destPrefix: ${{ inputs.dest_prefix }}
 
   build-win-packages:
     name: Create MSI & Upload into GH Release assets
@@ -183,7 +184,7 @@ jobs:
           build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch "${{ matrix.goarch }}" -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "New Relic"
       - name: Test win packages installation
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/windows@v1
+        uses: newrelic/integrations-pkg-test-action/windows@v1 #TODO update v1 to latest release after merging and releasing the integrations-pkg-test-action destPrefix changes
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
@@ -191,6 +192,7 @@ jobs:
           pkgType: ${{ inputs.win_package_type }}
           upgrade: true
           pkgDirBase: build\package\windows
+          destPrefix: ${{ inputs.dest_prefix }}
       - name: Upload MSI to GH Release
         shell: bash
         env:
@@ -254,13 +256,14 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
       - name: Test package from Staging repo
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@v1 #TODO update v1 to latest release after merging and releasing the integrations-pkg-test-action destPrefix changes
         with:
           tag: ${{ inputs.tag }}
           integration: 'nri-${{ inputs.integration }}'
           packageLocation: repo
           stagingRepo: true
           upgrade: false
+          destPrefix: ${{ inputs.dest_prefix }}
       - uses: actions/checkout@v4
       - name: Update pre-release title
         env:
