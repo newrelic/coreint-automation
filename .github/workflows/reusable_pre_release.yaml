@@ -141,11 +141,10 @@ jobs:
         run: make ci/prerelease
       - name: Test package installability
         if: ${{ inputs.test_package }}
-        uses: sairaj18/integrations-pkg-test-action/linux@NR-340027-add-dest-prefix-input-flag #TODO update v1 to latest release after merging and releasing the integrations-pkg-test-action destPrefix changes
+        uses: newrelic/integrations-pkg-test-action/linux@v1
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
-          destPrefix: ${{ inputs.dest_prefix }}
 
   build-win-packages:
     name: Create MSI & Upload into GH Release assets
