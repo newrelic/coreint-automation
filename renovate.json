@@ -3,10 +3,45 @@
   "extends": [
     "config:recommended"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/build_publish_builder_image\\.yaml$"],
+      "matchStrings": [
+        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.22\\.\\d+),\\s*(?<currentValue2>1\\.23\\.\\d+)\\s*\\]"
+      ],
+      "datasourceTemplate": "golang-version",
+      "depNameTemplate": "golang-1.22",
+      "currentValueTemplate": "{{{currentValue1}}}",
+      "extractVersionTemplate": "(?<version>1\\.22\\.\\d+)"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/build_publish_builder_image\\.yaml$"],
+      "matchStrings": [
+        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.22\\.\\d+),\\s*(?<currentValue2>1\\.23\\.\\d+)\\s*\\]"
+      ],
+      "datasourceTemplate": "golang-version",
+      "depNameTemplate": "golang-1.23",
+      "currentValueTemplate": "{{{currentValue2}}}",
+      "extractVersionTemplate": "(?<version>1\\.23\\.\\d+)"
+    }
+  ],
   "packageRules": [
     {
-      "matchUpdateTypes": [ "minor" ],
-      "matchPackageNames": [ "aquasecurity/trivy-action" ],
+      "description": "Automerge patch updates for Go versions 1.22.x and 1.23.x",
+      "matchDatasources": ["golang-version"],
+      "matchPackageNames": ["golang-1.22", "golang-1.23"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType":"pr",
+      "prCreation": "immediate",
+      "pruneBranchAfterAutomerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "matchPackageNames": ["aquasecurity/trivy-action"],
       "automerge": true,
       "automergeType": "branch",
       "pruneBranchAfterAutomerge": true
