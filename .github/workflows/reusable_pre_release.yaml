@@ -215,7 +215,7 @@ jobs:
       - name: Publish to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          disable_lock: true
+          disable_lock: false
           run_id: ${{ github.run_id }}
           tag: ${{ inputs.tag }}
           app_name: "nri-${{ inputs.integration }}"

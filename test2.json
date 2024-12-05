@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^\\.github/workflows/build_publish_builder_image\\.yaml$"
+      ],
+      "matchStrings": [
+        "go-version:\\s*\\[(?<currentValue>[^\\]]+)]"
+      ],
+      "datasourceTemplate": "go",
+      "versioningTemplate": "semver",
+      "depNameTemplate": "go",
+      "extractVersionTemplate": "{{#each (split currentValue ',')}}{{this}}{{#unless @last}},{{/unless}}{{/each}}"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Automerge patch updates for Go versions",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true,
+      "prCreation": "immediate"
+    },
+    {
+      "description": "Automerge minor updates for trivy-action",
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "matchPackageNames": [
+        "aquasecurity/trivy-action"
+      ],
+      "automerge": true,
+      "automergeType": "branch",
+      "pruneBranchAfterAutomerge": true
+    }
+  ]
+}
