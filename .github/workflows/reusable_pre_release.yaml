@@ -259,14 +259,13 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
       - name: Test package from Staging repo
         if: ${{ inputs.test_package }}
-        uses: sairaj18/integrations-pkg-test-action/linux@NR-340027-add-dest-prefix-input-flag #TODO update v1 to latest release after merging and releasing the integrations-pkg-test-action destPrefix changes
+        uses: newrelic/integrations-pkg-test-action/linux@v1
         with:
           tag: ${{ inputs.tag }}
           integration: 'nri-${{ inputs.integration }}'
           packageLocation: repo
           stagingRepo: true
           upgrade: false
-          destPrefix: ${{ inputs.dest_prefix }}
       - uses: actions/checkout@v4
       - name: Update pre-release title
         env:
