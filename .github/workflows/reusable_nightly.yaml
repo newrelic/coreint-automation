@@ -55,10 +55,12 @@ jobs:
     name: Nightly Build and Test
     runs-on: ubuntu-latest
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DOCKER_IMAGE: ${{ inputs.docker_image }}
       DOCKER_TAG: ${{ inputs.docker_tag }}
+      TAG_SUFFIX: "-${{ inputs.docker_tag }}"
       TEST_IMAGE: ${{ inputs.docker_image }}:${{ inputs.docker_tag }}
-      GENERATE_PACKAGES: ${{ inputs.generate_packages }}
+      
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +88,8 @@ jobs:
         run: ${{ inputs.build_command }}
         shell: bash
         continue-on-error: false
+        env:
+          GENERATE_PACKAGES: ${{ inputs.generate_packages }}
 
       - name: Run Trivy to check Docker image for vulnerabilities
         if: ${{ inputs.trivy_scan }}
