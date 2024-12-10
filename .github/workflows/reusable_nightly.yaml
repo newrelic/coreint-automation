@@ -58,9 +58,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DOCKER_IMAGE: ${{ inputs.docker_image }}
       DOCKER_TAG: ${{ inputs.docker_tag }}
-      TAG_SUFFIX: "-${{ inputs.docker_tag }}"
       TEST_IMAGE: ${{ inputs.docker_image }}:${{ inputs.docker_tag }}
-      
+
     steps:
       - uses: actions/checkout@v4
 
@@ -90,6 +89,7 @@ jobs:
         continue-on-error: false
         env:
           GENERATE_PACKAGES: ${{ inputs.generate_packages }}
+          TAG_SUFFIX: "-${{ inputs.docker_tag }}"
 
       - name: Run Trivy to check Docker image for vulnerabilities
         if: ${{ inputs.trivy_scan }}
