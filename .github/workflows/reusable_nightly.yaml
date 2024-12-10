@@ -41,6 +41,10 @@ on:
           type: string
           required: false
           default: "go.mod"
+        generate_packages:
+          type: boolean
+          required: false
+          default: false
         trivy_scan:
           type: boolean
           required: false
@@ -54,6 +58,7 @@ jobs:
       DOCKER_IMAGE: ${{ inputs.docker_image }}
       DOCKER_TAG: ${{ inputs.docker_tag }}
       TEST_IMAGE: ${{ inputs.docker_image }}:${{ inputs.docker_tag }}
+      GENERATE_PACKAGES: ${{ inputs.generate_packages }}
     steps:
       - uses: actions/checkout@v4
 
