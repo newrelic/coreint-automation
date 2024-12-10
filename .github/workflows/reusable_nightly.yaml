@@ -13,7 +13,10 @@ on:
           type: string
           required: false
           default: "master,main"
-
+        integration_name:
+          type: string
+          required: false
+          default: ""
         docker_image:
           type: string
           required: true
@@ -62,6 +65,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DOCKER_IMAGE: ${{ inputs.docker_image }}
       TAG: ${{ inputs.docker_tag }}
+      INTEGRATION: ${{ inputs.integration_name }}
       TEST_IMAGE: ${{ inputs.docker_image }}:${{ inputs.docker_tag }}
       GENERATE_PACKAGES: ${{ inputs.generate_packages }}
       TAG_SUFFIX: "-${{ inputs.docker_tag }}"
