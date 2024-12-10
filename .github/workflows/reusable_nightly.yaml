@@ -50,9 +50,6 @@ jobs:
   nightly:
     name: Nightly Build and Test
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'schedule' || 
-      contains(fromJSON(inputs.target_branches), github.ref_name)
     env:
       DOCKER_IMAGE: ${{ inputs.docker_image }}
       DOCKER_TAG: ${{ inputs.docker_tag }}
