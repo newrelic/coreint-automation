@@ -82,8 +82,6 @@ jobs:
         
       - name: Build Image
         run: ${{ inputs.build_command }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         continue-on-error: false
 
