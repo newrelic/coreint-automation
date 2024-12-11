@@ -1,0 +1,30 @@
+name: Check FIPS binaries for compliance
+description: Check FIPS compliance for binaries
+inputs:
+  binaries_path:
+    required: false
+    default: "./dist"
+    description: "Path to the binaries to check for FIPS compliance, e.g. './dist'"
+runs:
+  using: "composite"
+  steps:
+    - name: Test binaries for FIPS compliance
+      shell: bash
+      run: |
+        find "${{ inputs.binaries_path }}" -type d -name '*-fips*' | while read -r dir; do
+          find "$dir" -type f | while read -r file; do
+            if [ -x "$file" ]; then
+              echo "Checking FIPS mode for binary: $file"
+              # Inline script to check for FIPS-related strings
+              FIPS_STRINGS=$(strings "$file" | grep -i -e fips -e "FIPS_mode_set" -e "FIPS 140-2")
+              if [ -n "$FIPS_STRINGS" ]; then
+                echo "The binary '$file' may be built with FIPS mode. Found the following indicators:"
+                echo "$FIPS_STRINGS"
+              else
+                echo "No FIPS-related indicators found in the binary '$file'."
+                exit 1
+              fi
+              echo "----------------------------------------"
+            fi
+          done
+        done

@@ -139,6 +139,10 @@ jobs:
           # The upload script expects this to authenticate.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make ci/prerelease
+      - uses: newrelic/coreint-automation/test-fips-action@v3
+        if: ${{ inputs.upload_fips_packages }}
+        with:
+          binaries_path: "./dist"
       - name: Test package installability
         if: ${{ inputs.test_package }}
         uses: newrelic/integrations-pkg-test-action/linux@v1
