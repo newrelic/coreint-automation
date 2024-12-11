@@ -1,0 +1,40 @@
+name: Check FIPS
+
+# jobs:
+#   job_name:
+#     uses: newrelic/coreint-automation/.github/workflows/reusable_check_fips.yaml@v3
+#     with:
+#       binaries_path: "./dist"
+
+on:
+  workflow_call:
+    inputs:
+      test_package:
+        required: false
+        type: boolean
+        default: true
+      binaries_path:
+        required: false
+        type: string
+        default: "./dist"
+        description: "Path to the binaries to check for FIPS compliance, e.g. './dist'"
+
+jobs:
+  check-fips:
+    name: Check FIPS binary for FIPS compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test binaries for FIPS compliance
+        if: ${{ inputs.test_package }}
+        shell: bash
+        run: |
+          find ${{ inputs.binaries_path }} -type d -name '*-fips*' | while read -r dir; do
+            find "$dir" -type f | while read -r file; do
+              if [ -x "$file" ]; then
+                echo "Checking FIPS mode for binary: $file"
+                ./scripts/check_fips.sh "$file"
+                echo "----------------------------------------"
+              fi
+            done
+          done

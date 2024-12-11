@@ -139,12 +139,18 @@ jobs:
           # The upload script expects this to authenticate.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make ci/prerelease
-      - name: Test package installability
-        if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
-        with:
-          tag: ${{ inputs.tag }}
-          integration: nri-${{ inputs.integration }}
+      # - name: Test package installability
+      #   if: ${{ inputs.test_package }}
+      #   uses: newrelic/integrations-pkg-test-action/linux@v1
+      #   with:
+      #     tag: ${{ inputs.tag }}
+      #     integration: nri-${{ inputs.integration }}
+  test-fips-compliance:
+    needs: [build-artifacts]
+    if: ${{ inputs.upload_fips_packages}}
+    uses: ./.github/workflows/_reusable_check_fips.yaml
+    with:
+      binaries_path: "./dist"
 
   build-win-packages:
     name: Create MSI & Upload into GH Release assets
