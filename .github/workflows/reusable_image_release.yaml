@@ -123,6 +123,11 @@ jobs:
   release-integration:
     name: Publish container images to registry
     needs: [test-nix, test-windows, integration-tests]
+    if: |
+      always() &&
+      (needs.integration-tests.result == 'success' || needs.integration-tests.result == 'skipped') &&
+      (needs.test-nix.result == 'success' || needs.test-nix.result == 'skipped') &&
+      (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: checkout
