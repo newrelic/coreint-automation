@@ -7,12 +7,18 @@ source "$(dirname $(readlink -f $0))/common-functions.sh"
 # Listing all repositories that start with `nri-` that belongs to coreint
 gh api --paginate "/teams/${TEAM_ID}/repos" --jq '.[] | select(.name | startswith("nri-")) | .name' | \
 while read REPO_NAME; do
+    echo " Checking $REPO_NAME..."
     # Get the date of the latest release.
     LATEST_RELEASE_DATE=$(
         gh release list --json publishedAt,isLatest -R "${ORG}/${REPO_NAME}" --jq '
             .[] | select(.isLatest) | .publishedAt | fromdateiso8601
         '
     )
+
+    if [ -z "$LATEST_RELEASE_DATE" ]; then
+        echo " No releases found for \"${REPO_NAME}\" (probably not an OHAI repository)"
+        continue
+    fi
 
     # List all releases, filter by prereleases that was made later than the latest release, sort by date,
     # reverse because the last one is the most recent and only grab the last prerelease
@@ -25,7 +31,7 @@ while read REPO_NAME; do
         '
     )
     if ! [ -z "${NON_PUBLISHED_PRERELEASES}" ]; then
-        # Next querie uses the list release API endpoint:
+        # Next query uses the list release API endpoint:
         # https://docs.github.com/en/rest/releases/releases?apiVersion=2022-11-28#list-releases
 
         # gh list release is limited only to fields createdAt, isDraft, isLatest, isPrerelease, name, publishedAt, and tagName

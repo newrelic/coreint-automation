@@ -6,8 +6,8 @@ fi
 
 ORG="newrelic";
 # https://docs.github.com/en/rest/teams/teams?apiVersion=2022-11-28#get-a-team-by-name
-# gh api /orgs/newrelic/teams/coreint | jq .id
-TEAM_ID="3626876";
+# gh api /orgs/newrelic/teams/ohai | jq .id
+TEAM_ID="11525403";
 
 reference_status () {
     REPOSITORY_SLUG="$1"
