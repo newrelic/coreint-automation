@@ -68,6 +68,12 @@ on:
       bot_token:
         description: 'Github Token'
         required: true
+      aws_access_key_id:
+        description: 'AWS key ID'
+        required: false
+      aws_access_key_secret:
+        description: 'AWS key secret'
+        required: false
 
 env:
   GITHUB_TOKEN: ${{ secrets.bot_token }}
@@ -172,8 +178,8 @@ jobs:
         if: ${{ inputs.setup_aws_creds }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.COREINT_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.COREINT_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_access_key_secret }}
           aws-region: us-east-1
       
       - name: Build and push versioned docker image
