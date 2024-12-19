@@ -23,6 +23,10 @@ on:
         type: string
         required: false
         default: ''
+      s_three_folder:
+        type: string
+        required: false
+        default: ''
       go_version_file:
         type: string
         required: false
@@ -49,6 +53,10 @@ on:
       use_custom_release:
         type: boolean
         required: true
+      setup_aws_creds:
+        type: boolean
+        required: false
+        default: false
 
     secrets:
       docker_username:
@@ -70,6 +78,7 @@ env:
   REPO_FULL_NAME: ${{ github.event.repository.full_name }}
   INTEGRATION: ${{ inputs.integration_name }}
   S3_PATH: ${{ inputs.s_three_path }}
+  S3_BASE_FOLDER: ${{ inputs.s_three_folder }}
 
 jobs:
   test-nix:
@@ -158,6 +167,14 @@ jobs:
         run: |
           TAG_WITHOUT_V=$(echo "${{ env.TAG }}" | sed 's/^v//')
           echo "VERSION=$TAG_WITHOUT_V" >> $GITHUB_ENV
+
+      - name: Setup AWS credentials
+        if: ${{ inputs.setup_aws_creds }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.COREINT_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.COREINT_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
       
       - name: Build and push versioned docker image
         if: ${{ inputs.use_build_push_action }}
@@ -192,9 +209,7 @@ jobs:
         env:
           GH_TOKEN: "${{ secrets.bot_token }}"
         run: |
-          gh release edit ${{ github.event.release.tag_name }} --title "${{ github.event.release.tag_name }}"
-
-  
+          gh release edit ${{ github.event.release.tag_name }} --title "${{ github.event.release.tag_name }}"  
 
   notify-failure:
     if: ${{ always() && failure() }}
