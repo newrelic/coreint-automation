@@ -31,7 +31,7 @@ on:
         type: string
         required: false
         default: 'go.mod'
-      release_command:
+      release_command_sh:
         type: string
         required: true
 
@@ -48,9 +48,6 @@ on:
         required: false
         default: true
       use_build_push_action:
-        type: boolean
-        required: true
-      use_custom_release:
         type: boolean
         required: true
       setup_aws_creds:
@@ -163,16 +160,20 @@ jobs:
         with:
           username: ${{ secrets.docker_username }}
           password: ${{ secrets.docker_password }}
-
-      - name: Add pre-release tag suffix
-        if: ${{ github.event.release.prerelease }}
-        run: |
-            echo "TAG_SUFFIX=-pre" >> $GITHUB_ENV
-        
+      
       - name: Generate version from tag
         run: |
           TAG_WITHOUT_V=$(echo "${{ env.TAG }}" | sed 's/^v//')
           echo "VERSION=$TAG_WITHOUT_V" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE_TAG=$TAG_WITHOUT_V" >> $GITHUB_ENV
+      
+      # On pre-releases, the suffix '-pre' is appended to the image tag
+      # Once all workflows start using the $DOCKER_IMAGE_TAG, $TAG_SUFFIX AND $VERSION can be removed
+      - name: Add pre-release tag suffix
+        if: ${{ github.event.release.prerelease }}
+        run: |
+            echo "TAG_SUFFIX=-pre" >> $GITHUB_ENV
+            echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}-pre" >> $GITHUB_ENV
 
       - name: Setup AWS credentials
         if: ${{ inputs.setup_aws_creds }}
@@ -202,8 +203,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE_NAME }}:latest
       
       - name: Run image release commands
-        if: ${{ inputs.use_custom_release }}
-        run: ${{ inputs.release_command }}
+        run: ${{ inputs.release_command_sh }}
         shell: bash
         continue-on-error: false
         env:
