@@ -11,8 +11,8 @@ on:
         description: 'Comma-separated list of Docker platforms'
         type: string
         default: 'linux/amd64,linux/arm64'
+        required: true
       docker_image_name:
-        description: 'Docker image name to use'
         type: string
         required: true
       integration_name:
@@ -42,14 +42,11 @@ on:
       run_nix_unit_tests:
         type: boolean
         required: false
-        default: true
+        default: false
       run_windows_unit_tests:
         type: boolean
         required: false
-        default: true
-      use_build_push_action:
-        type: boolean
-        required: true
+        default: false
       setup_aws_creds:
         type: boolean
         required: false
@@ -182,26 +179,7 @@ jobs:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_access_key_secret }}
           aws-region: us-east-1
-      
-      - name: Build and push versioned docker image
-        if: ${{ inputs.use_build_push_action }}
-        uses: docker/build-push-action@v6
-        with:
-          platforms: ${{ env.DOCKER_PLATFORMS }}
-          context: .
-          push: true
-          tags: |
-            ${{ env.DOCKER_IMAGE_NAME }}:${{ env.VERSION }}${{ env.TAG_SUFFIX }}
-    
-      - name: Push latest tag
-        if:  ${{ ! github.event.release.prerelease && inputs.use_build_push_action }}
-        uses: docker/build-push-action@v6
-        with:
-          platforms: ${{ env.DOCKER_PLATFORMS }}
-          context: .
-          push: true
-          tags: ${{ env.DOCKER_IMAGE_NAME }}:latest
-      
+            
       - name: Run image release commands
         run: ${{ inputs.release_command_sh }}
         shell: bash
