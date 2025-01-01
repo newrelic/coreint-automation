@@ -4,11 +4,9 @@ on:
   workflow_call:
     inputs:
       original_repo_name:
-        description: 'Full repository name (org/repo)'
         type: string
         required: true
       docker_platforms:
-        description: 'Comma-separated list of Docker platforms'
         type: string
         default: 'linux/amd64,linux/arm64'
         required: true
@@ -19,14 +17,11 @@ on:
         type: string
         required: false
         default: ''
-      s_three_path:
+      
+      bucket_url:
         type: string
         required: false
-        default: ''
-      s_three_folder:
-        type: string
-        required: false
-        default: ''
+        default: 's3://nr-downloads-main/infrastructure_agent'
       go_version_file:
         type: string
         required: false
@@ -48,6 +43,10 @@ on:
         required: false
         default: false
       setup_aws_creds:
+        type: boolean
+        required: false
+        default: false
+      generate_packages:
         type: boolean
         required: false
         default: false
@@ -77,8 +76,10 @@ env:
   ORIGINAL_REPO_NAME: ${{ inputs.original_repo_name }}
   REPO_FULL_NAME: ${{ github.event.repository.full_name }}
   INTEGRATION: ${{ inputs.integration_name }}
-  S3_PATH: ${{ inputs.s_three_path }}
-  S3_BASE_FOLDER: ${{ inputs.s_three_folder }}
+  S3_PATH: ${{ inputs.bucket_url }}
+  S3_BASE_FOLDER: ${{ inputs.bucket_url }}
+  PRERELEASE: ${{ github.event.release.prerelease }}
+  GENERATE_PACKAGES: ${{ inputs.generate_packages }}
 
 jobs:
   test-nix:
@@ -184,9 +185,6 @@ jobs:
         run: ${{ inputs.release_command_sh }}
         shell: bash
         continue-on-error: false
-        env:
-          GENERATE_PACKAGES: true
-          PRERELEASE: ${{ github.event.release.prerelease }}
 
       - name: Update title for successful pre-release
         if: ${{ github.event.release.prerelease }}
