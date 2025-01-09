@@ -7,6 +7,7 @@ source "$(dirname $(readlink -f $0))/common-functions.sh"
 # Listing all repositories that start with `nri-` that belongs to coreint
 gh api --paginate "/teams/${TEAM_ID}/repos" --jq '.[] | select(.name | startswith("nri-")) | .name' | \
 while read REPO_NAME; do
+    echo Checking $REPO_NAME
     # Get the date of the latest release.
     LATEST_RELEASE_DATE=$(
         gh release list --json publishedAt,isLatest -R "${ORG}/${REPO_NAME}" --jq '
