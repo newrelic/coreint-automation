@@ -44,7 +44,7 @@ sles_regex="(.*sles12.*)"
 for rpm_file in $(find -regex ".*\.\(rpm\)");do
   echo "===> Signing $rpm_file"
 
-  ./sign_rpm.exp $rpm_file ${GPG_PASSPHRASE}
+  sign_rpm.exp $rpm_file ${GPG_PASSPHRASE}
 
   echo "===> Sign verification $rpm_file"
   rpm -v --checksig $rpm_file
@@ -63,7 +63,7 @@ for deb_file in $(find -regex ".*\.\(deb\)"); do
   echo "===> Signing $deb_file"
 
   # Run the sign_deb.exp script to sign the .deb file
-./sign_deb.exp $deb_file ${GPG_PASSPHRASE} ${GPG_MAIL}
+  sign_deb.exp $deb_file ${GPG_PASSPHRASE} ${GPG_MAIL}
 
 
   echo "===> Sign verification $deb_file"
@@ -73,7 +73,7 @@ done
 # Sign TARGZ files
 for targz_file in $(find . -type f -name "*.tar.gz"); do
   echo "===> Signing $targz_file"
-  ./sign_tar.exp $targz_file ${GPG_PASSPHRASE}
+  sign_tar.exp $targz_file ${GPG_PASSPHRASE}
   asc_file="${targz_file}.asc"
   if [ -f "$asc_file" ]; then
     echo "===> Sign verification $targz_file"
