@@ -47,5 +47,6 @@ ENV GOFLAGS="-buildvcs=false"
 # Since the user does not match the owners of the repo "git rev-parse --is-inside-work-tree" fails and goreleaser does not populate projectName
 # https://stackoverflow.com/questions/72978485/git-submodule-update-failed-with-fatal-detected-dubious-ownership-in-repositor
 RUN git config --global --add safe.directory '*'
+COPY ./sign.sh ./sign_deb.exp ./sign_rpm.exp ./sign_tar.exp /usr/local/bin
 RUN curl -L https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb -o gh_${GH_VERSION}_linux_amd64.deb
 RUN dpkg -i gh_${GH_VERSION}_linux_amd64.deb
