@@ -1,0 +1,220 @@
+name: Reusable Pre Release and Release Pipeline for docker images
+
+on:
+  workflow_call:
+    inputs:
+      original_repo_name:
+        type: string
+        required: true
+      docker_platforms:
+        type: string
+        default: 'linux/amd64,linux/arm64,linux/arm'
+        required: false
+      docker_image_name:
+        type: string
+        required: true
+      integration_name:
+        type: string
+        required: false
+        default: ''
+      
+      bucket_url:
+        type: string
+        required: false
+        default: 's3://nr-downloads-main/infrastructure_agent'
+      go_version_file:
+        type: string
+        required: false
+        default: 'go.mod'
+      release_command_sh:
+        type: string
+        required: true
+
+      run_integration_tests:
+        type: boolean
+        required: false
+        default: false
+      run_nix_unit_tests:
+        type: boolean
+        required: false
+        default: false
+      run_windows_unit_tests:
+        type: boolean
+        required: false
+        default: false
+      setup_aws_creds:
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      docker_username:
+        description: 'DockerHub username'
+        required: true
+      docker_password:
+        description: 'DockerHub password'
+        required: true
+      bot_token:
+        description: 'Github Token'
+        required: true
+      aws_access_key_id:
+        description: 'AWS key ID'
+        required: false
+      aws_access_key_secret:
+        description: 'AWS key secret'
+        required: false
+
+env:
+  GITHUB_TOKEN: ${{ secrets.bot_token }}
+  DOCKER_PLATFORMS: ${{ inputs.docker_platforms }}
+  DOCKER_IMAGE_NAME: ${{ inputs.docker_image_name }}
+  TAG: ${{ github.event.release.tag_name }}
+  ORIGINAL_REPO_NAME: ${{ inputs.original_repo_name }}
+  REPO_FULL_NAME: ${{ github.event.repository.full_name }}
+  INTEGRATION: ${{ inputs.integration_name }}
+  S3_BASE_FOLDER: ${{ inputs.bucket_url }}
+  PRERELEASE: ${{ github.event.release.prerelease }}
+
+jobs:
+  test-nix:
+    if: ${{ inputs.run_nix_unit_tests }}
+    uses: newrelic/coreint-automation/.github/workflows/_test_nix.yaml@v3
+
+  test-windows:
+    if: ${{ inputs.run_windows_unit_tests }}
+    runs-on: windows-latest
+    env:
+      GOPATH: ${{ github.workspace }}
+    defaults:
+      run:
+        working-directory: src/github.com/${{env.ORIGINAL_REPO_NAME}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: src/github.com/${{env.ORIGINAL_REPO_NAME}}
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "src/github.com/${{ env.ORIGINAL_REPO_NAME }}/go.mod"
+      - name: Running unit tests
+        shell: pwsh
+        run: |
+          .\build\windows\unit_tests.ps1
+    
+  integration-tests:
+    name: 🚧 Integration Tests
+    if: ${{ inputs.run_integration_tests }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.docker_username }}
+          password: ${{ secrets.docker_password }}
+      - name: Running integration tests
+        run: |
+          make integration-tests-${{ matrix.arch }}
+
+  release-integration:
+    name: Publish container images to registry
+    needs: [test-nix, test-windows, integration-tests]
+    if: |
+      always() &&
+      (needs.integration-tests.result == 'success' || needs.integration-tests.result == 'skipped') &&
+      (needs.test-nix.result == 'success' || needs.test-nix.result == 'skipped') &&
+      (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ inputs.go_version_file }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.docker_username }}
+          password: ${{ secrets.docker_password }}
+      
+      # Once all workflows start using the $DOCKER_IMAGE_TAG, $VERSION can be removed
+      - name: Generate version from tag
+        run: |
+          TAG_WITHOUT_V=$(echo "${{ env.TAG }}" | sed 's/^v//')
+          echo "VERSION=$TAG_WITHOUT_V" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE_TAG=$TAG_WITHOUT_V" >> $GITHUB_ENV
+      
+      # On pre-releases, the suffix '-pre' is appended to the image tag
+      - name: Add pre-release tag suffix
+        if: ${{ github.event.release.prerelease }}
+        run: |
+            echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}-pre" >> $GITHUB_ENV
+
+      - name: Setup AWS credentials
+        if: ${{ inputs.setup_aws_creds }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_access_key_secret }}
+          aws-region: us-east-1
+            
+      - name: Run image release commands
+        run: ${{ inputs.release_command_sh }}
+        shell: bash
+        continue-on-error: false
+
+      - name: Update title for successful pre-release
+        if: ${{ github.event.release.prerelease }}
+        env:
+          GH_TOKEN: "${{ secrets.bot_token }}"
+        run: |
+          gh release edit ${{ github.event.release.tag_name }} --title "${{ github.event.release.tag_name }}"  
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [release-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `${{ env.ORIGINAL_REPO_NAME }}`: [image release failed](${{ github.server_url }}/${{ env.ORIGINAL_REPO_NAME }}/actions/runs/${{ github.run_id }})."
+
+  update-title-on-failure:
+    if: ${{ always() && failure() }}
+    needs: [release-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - if: ${{ github.event.release.prerelease }}
+        name: Reflect failure in pre-release title
+        env:
+          GH_TOKEN: "${{ secrets.bot_token }}"
+        run: |
+          gh release edit ${{ github.event.release.tag_name }} --title "${{ github.event.release.tag_name }} (pre-release-failure)"
+      
+      - if: ${{ ! github.event.release.prerelease }}
+        name: Reflect failure in release title
+        env:
+          GH_TOKEN: "${{ secrets.bot_token }}"
+        run: |
+          gh release edit ${{ github.event.release.tag_name }} --title "${{ github.event.release.tag_name }} (release-failure)"
