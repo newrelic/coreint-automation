@@ -46,10 +46,6 @@ on:
         type: boolean
         required: false
         default: false
-      generate_packages:
-        type: boolean
-        required: false
-        default: false
 
     secrets:
       docker_username:
@@ -76,10 +72,8 @@ env:
   ORIGINAL_REPO_NAME: ${{ inputs.original_repo_name }}
   REPO_FULL_NAME: ${{ github.event.repository.full_name }}
   INTEGRATION: ${{ inputs.integration_name }}
-  S3_PATH: ${{ inputs.bucket_url }}
   S3_BASE_FOLDER: ${{ inputs.bucket_url }}
   PRERELEASE: ${{ github.event.release.prerelease }}
-  GENERATE_PACKAGES: ${{ inputs.generate_packages }}
 
 jobs:
   test-nix:
@@ -159,6 +153,7 @@ jobs:
           username: ${{ secrets.docker_username }}
           password: ${{ secrets.docker_password }}
       
+      # Once all workflows start using the $DOCKER_IMAGE_TAG, $VERSION can be removed
       - name: Generate version from tag
         run: |
           TAG_WITHOUT_V=$(echo "${{ env.TAG }}" | sed 's/^v//')
@@ -166,11 +161,9 @@ jobs:
           echo "DOCKER_IMAGE_TAG=$TAG_WITHOUT_V" >> $GITHUB_ENV
       
       # On pre-releases, the suffix '-pre' is appended to the image tag
-      # Once all workflows start using the $DOCKER_IMAGE_TAG, $TAG_SUFFIX AND $VERSION can be removed
       - name: Add pre-release tag suffix
         if: ${{ github.event.release.prerelease }}
         run: |
-            echo "TAG_SUFFIX=-pre" >> $GITHUB_ENV
             echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}-pre" >> $GITHUB_ENV
 
       - name: Setup AWS credentials
