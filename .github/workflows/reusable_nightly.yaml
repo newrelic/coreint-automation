@@ -124,5 +124,5 @@ jobs:
         uses: archive/github-actions-slack@master
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
-          slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `${{ inputs.docker_image }}`: [Nightly test/release failed](${{ github.server_url }}/${{ inputs.docker_image }}/actions/runs/${{ github.run_id }})."
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `${{ inputs.docker_image }}`: [Nightly tests/release failed](${{ github.server_url }}/${{ inputs.docker_image }}/actions/runs/${{ github.run_id }})."
