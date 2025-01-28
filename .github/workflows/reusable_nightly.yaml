@@ -7,6 +7,10 @@ on:
           required: true
         docker_password:
           required: true
+        slack_channel:
+          required: true
+        slack_token:
+          required: true
 
       inputs:
         target_branches:
@@ -123,6 +127,6 @@ jobs:
       - name: Notify failure via Slack
         uses: archive/github-actions-slack@master
         with:
-          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
-          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
+          slack-channel: ${{ secrets.slack_channel }}
           slack-text: "❌ `${{ inputs.docker_image }}`: [Nightly tests/release failed](${{ github.server_url }}/${{ inputs.docker_image }}/actions/runs/${{ github.run_id }})."
