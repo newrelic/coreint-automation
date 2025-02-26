@@ -8,30 +8,30 @@
       "customType": "regex",
       "fileMatch": ["^\\.github/workflows/build_publish_builder_image\\.yaml$"],
       "matchStrings": [
-        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.22\\.\\d+),\\s*(?<currentValue2>1\\.23\\.\\d+)\\s*\\]"
+        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.23\\.\\d+),\\s*(?<currentValue2>1\\.24\\.\\d+)\\s*\\]"
       ],
       "datasourceTemplate": "golang-version",
-      "depNameTemplate": "golang-1.22",
+      "depNameTemplate": "golang-1.23",
       "currentValueTemplate": "{{{currentValue1}}}",
-      "extractVersionTemplate": "(?<version>1\\.22\\.\\d+)"
+      "extractVersionTemplate": "(?<version>1\\.23\\.\\d+)"
     },
     {
       "customType": "regex",
       "fileMatch": ["^\\.github/workflows/build_publish_builder_image\\.yaml$"],
       "matchStrings": [
-        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.22\\.\\d+),\\s*(?<currentValue2>1\\.23\\.\\d+)\\s*\\]"
+        "go-version:\\s*\\[\\s*(?<currentValue1>1\\.23\\.\\d+),\\s*(?<currentValue2>1\\.24\\.\\d+)\\s*\\]"
       ],
       "datasourceTemplate": "golang-version",
-      "depNameTemplate": "golang-1.23",
+      "depNameTemplate": "golang-1.24",
       "currentValueTemplate": "{{{currentValue2}}}",
-      "extractVersionTemplate": "(?<version>1\\.23\\.\\d+)"
+      "extractVersionTemplate": "(?<version>1\\.24\\.\\d+)"
     }
   ],
   "packageRules": [
     {
-      "description": "Automerge patch updates for Go versions 1.22.x and 1.23.x",
+      "description": "Automerge patch updates for Go versions 1.23.x and 1.24.x",
       "matchDatasources": ["golang-version"],
-      "matchPackageNames": ["golang-1.22", "golang-1.23"],
+      "matchPackageNames": ["golang-1.23", "golang-1.24"],
       "matchUpdateTypes": ["patch"],
       "automerge": true,
       "automergeType":"pr",
