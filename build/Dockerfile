@@ -6,6 +6,8 @@ FROM ubuntu:${UBUNTU_VERSION}
 ARG GO_VERSION=1.23.2
 ARG ARCH='amd64'
 ARG GH_VERSION='2.61.0'
+ARG DOCKER_VERSION='24.0.5'
+ARG BUILDX_VERSION='0.11.2'
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -43,6 +45,16 @@ ENV GOPATH="/go"
 # Default value of -buildvcs is auto, more info:
 # https://github.com/kubernetes-sigs/gateway-api/pull/2302#issuecomment-1855818388
 ENV GOFLAGS="-buildvcs=false"
+
+# Install Docker
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz -o docker.tgz && \
+    tar --extract --file docker.tgz --strip-components 1 --directory /usr/local/bin/ && \
+    rm docker.tgz
+
+# Install Buildx
+RUN mkdir -p ~/.docker/cli-plugins && \
+    curl -sSL https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-${ARCH} -o ~/.docker/cli-plugins/docker-buildx && \
+    chmod +x ~/.docker/cli-plugins/docker-buildx
 
 # Since the user does not match the owners of the repo "git rev-parse --is-inside-work-tree" fails and goreleaser does not populate projectName
 # https://stackoverflow.com/questions/72978485/git-submodule-update-failed-with-fatal-detected-dubious-ownership-in-repositor
