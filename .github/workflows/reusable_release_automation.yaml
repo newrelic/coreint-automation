@@ -86,7 +86,7 @@ jobs:
               [
                   .[] | select( .isPrerelease and ((.publishedAt | fromdateiso8601) > '${LATEST_RELEASE_DATE}'))
               ]
-              | sort_by(.publishedAt |= fromdateiso8601) | first
+              | first
             '
           )
 
