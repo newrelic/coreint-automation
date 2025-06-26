@@ -9,6 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Checkout to coreint-automation repo for using .golangci.yml in golangci-lint-action 
+      - name: Checkout coreint-automation repository
+        uses: actions/checkout@v4
+        with:
+          repository: newrelic/coreint-automation
+          ref: v3
+          path: './coreint-automation'
       - uses: newrelic/newrelic-infra-checkers@v1
       - uses: actions/setup-go@v5
         with:
@@ -18,5 +25,6 @@ jobs:
         continue-on-error: ${{ github.event_name != 'pull_request' }}
         with:
           only-new-issues: true
+          args: --config=${{ github.workspace }}/coreint-automation/.golangci.yml --issues-exit-code=0
       - name: Check if CHANGELOG is valid
         uses: newrelic/release-toolkit/validate-markdown@v1
