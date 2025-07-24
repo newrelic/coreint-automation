@@ -214,7 +214,7 @@ jobs:
     # Currently behavior of GHA skips the job if any 'needs' is skipped(Windows tests disabled), so the next condition is needed.
     # Runs always that 'needs' finishes if they are not cancelled nor failed
     if: ${{ always() && !cancelled() && !failure() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-4-cores
     steps:
       - name: Publish to S3 action
         uses: newrelic/infrastructure-publish-action@v1
