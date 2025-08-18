@@ -208,15 +208,24 @@ jobs:
         run: |
           build/windows/upload_msi.sh "$INTEGRATION" "${{ matrix.goarch }}" "$TAG"
   
-  publish:
-    name: Send release assets to S3
+  # NEW: Separate job for regular package publishing
+  publish-regular:
+    name: Send regular packages to S3
     needs: [build-artifacts, build-win-packages]
     # Currently behavior of GHA skips the job if any 'needs' is skipped(Windows tests disabled), so the next condition is needed.
     # Runs always that 'needs' finishes if they are not cancelled nor failed
     if: ${{ always() && !cancelled() && !failure() }}
     runs-on: ubuntu-latest-4-cores
     steps:
-      - name: Publish to S3 action
+      - name: Debug - Show app_name and dest_prefix for regular packages
+        run: |
+          echo "Regular packages publishing:"
+          echo "  app_name: nri-${{ inputs.integration }}"
+          echo "  dest_prefix: ${{ inputs.dest_prefix }}"
+          echo "  schema: ${{ inputs.publish_schema }}"
+          echo "  schema_url: ${{ inputs.publish_schema_url }}"
+          
+      - name: Publish regular packages to S3
         uses: newrelic/infrastructure-publish-action@v1
         with:
           disable_lock: false
@@ -238,8 +247,23 @@ jobs:
           # used for signing package stuff
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
-      - name: Publish to S3 action - fips
-        if: ${{ inputs.upload_fips_packages }}
+
+  # NEW: Separate job for FIPS package publishing
+  publish-fips:
+    name: Send FIPS packages to S3
+    needs: [build-artifacts, build-win-packages, publish-regular]  # Wait for regular publishing to complete
+    if: ${{ always() && !cancelled() && !failure() && inputs.upload_fips_packages && needs.publish-regular.result == 'success' }}
+    runs-on: ubuntu-latest-4-cores
+    steps:
+      - name: Debug - Show app_name and dest_prefix for FIPS packages
+        run: |
+          echo "FIPS packages publishing:"
+          echo "  app_name: nri-${{ inputs.integration }}-fips"
+          echo "  dest_prefix: ${{ inputs.dest_prefix }}"
+          echo "  schema: ${{ inputs.publish_schema_fips }}"
+          echo "  schema_url: ${{ inputs.publish_schema_url_fips }}"
+          
+      - name: Publish FIPS packages to S3
         uses: newrelic/infrastructure-publish-action@v1
         with:
           disable_lock: false
@@ -261,8 +285,15 @@ jobs:
           # used for signing package stuff
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+
+  # NEW: Consolidated testing job that runs after both publish jobs
+  test-published-packages:
+    name: Test published packages
+    needs: [publish-regular, publish-fips]
+    if: ${{ always() && !cancelled() && !failure() && inputs.test_package && needs.publish-regular.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Test package from Staging repo
-        if: ${{ inputs.test_package }}
         uses: newrelic/integrations-pkg-test-action/linux@v1
         with:
           tag: ${{ inputs.tag }}
@@ -270,6 +301,14 @@ jobs:
           packageLocation: repo
           stagingRepo: true
           upgrade: false
+
+  # NEW: Consolidated finalization job
+  finalize-release:
+    name: Finalize release
+    needs: [publish-regular, publish-fips, test-published-packages]
+    if: ${{ always() && !cancelled() && !failure() && needs.publish-regular.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
       - name: Update pre-release title
         env:
@@ -280,7 +319,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish]
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish-regular, publish-fips]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
@@ -292,7 +331,7 @@ jobs:
 
   update-title-on-failure:
     if: ${{ always() && failure() }}
-    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish]
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish-regular, publish-fips]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
