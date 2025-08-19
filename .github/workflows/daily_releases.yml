@@ -1,0 +1,258 @@
+name: Daily Release Status Notification
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      specific_day:
+        description: 'Check releases for a specific day (1=Monday, 2=Tuesday, etc.)'
+        required: false
+        type: choice
+        options:
+          - 'today'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+        default: 'today'
+
+env:
+  UNBLOCK_FILE_NAME: automatic_release_enable
+  BRANCH: gh-pages
+
+jobs:
+  check-and-notify:
+    name: Check Release Status and Send Notification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          
+      - name: Check if automatic releases are enabled
+        id: check_status
+        run: |
+          if [ -f "${{ env.UNBLOCK_FILE_NAME }}" ]; then
+            echo "RELEASES_ENABLED=true" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=✅ **Automatic releases are ENABLED**" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASES_ENABLED=false" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=🚫 **Automatic releases are BLOCKED**" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Determine day to check
+        id: get_day
+        run: |
+          if [ "${{ github.event.inputs.specific_day }}" == "today" ] || [ -z "${{ github.event.inputs.specific_day }}" ]; then
+            # Get current day of week (1=Monday, 2=Tuesday, etc.)
+            DAY_NUM=$(date +%u)
+          else
+            DAY_NUM="${{ github.event.inputs.specific_day }}"
+          fi
+          
+          echo "DAY_NUMBER=$DAY_NUM" >> $GITHUB_OUTPUT
+          
+          # Map day number to day name
+          case $DAY_NUM in
+            1) DAY_NAME="Monday" ;;
+            2) DAY_NAME="Tuesday" ;;
+            3) DAY_NAME="Wednesday" ;;
+            4) DAY_NAME="Thursday" ;;
+            5) DAY_NAME="Friday" ;;
+            *) DAY_NAME="Invalid Day" ;;
+          esac
+          
+          echo "DAY_NAME=$DAY_NAME" >> $GITHUB_OUTPUT
+          
+      - name: Get scheduled releases for today
+        id: get_releases
+        run: |
+          DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
+          
+          # Define all integrations with their schedules
+          declare -A MONDAY_RELEASES=(
+            ["nri-consul"]="02:00 UTC|Package"
+            ["nri-mysql"]="05:30 UTC|Package"
+            ["nri-memcached"]="07:30 UTC|Package"
+            ["nri-redis"]="09:30 UTC|Package"
+            ["nri-varnish"]="11:30 UTC|Package"
+            ["nri-discovery"]="13:00 UTC|GITHUB BINARY"
+            ["nri-apache"]="13:00 UTC|Package"
+            ["nri-postgresql"]="15:00 UTC|Package"
+          )
+          
+          declare -A TUESDAY_RELEASES=(
+            ["nri-haproxy"]="02:00 UTC|Package"
+            ["nri-nagios"]="03:30 UTC|Package"
+            ["nri-elasticsearch"]="05:30 UTC|Package"
+            ["nri-mongodb"]="07:30 UTC|Package"
+            ["nri-mssql"]="09:30 UTC|Package"
+            ["nri-oracledb"]="13:00 UTC|Package"
+            ["nri-docker"]="15:00 UTC|PACKAGE"
+          )
+          
+          declare -A WEDNESDAY_RELEASES=(
+            ["nri-couchbase"]="02:30 UTC|PACKAGE"
+            ["nri-rabbitmq"]="05:30 UTC|PACKAGE"
+            ["nri-kafka"]="10:30 UTC|Package"
+            ["nri-prometheus"]="12:00 UTC|IMAGE"
+            ["nri-cassandra"]="13:30 UTC|Package"
+            ["nri-nginx"]="17:00 UTC|Package"
+            ["nrjmx"]="19:00 UTC|Package"
+          )
+          
+          declare -A THURSDAY_RELEASES=(
+            ["nri-f5"]="05:00 UTC|Package"
+            ["nri-vsphere"]="09:00 UTC|Package"
+            ["infrastructure-bundle"]="10:00 UTC|IMAGE"
+            ["nri-ecs"]="15:00 UTC|Image"
+            ["nri-statsd"]="17:00 UTC|Image"
+            ["nri-jmx"]="19:00 UTC|Package"
+          )
+          
+          # Build release list based on day
+          RELEASE_LIST=""
+          case $DAY_NUM in
+            1)
+              for repo in "${!MONDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${MONDAY_RELEASES[$repo]}"
+                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+              done
+              ;;
+            2)
+              for repo in "${!TUESDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${TUESDAY_RELEASES[$repo]}"
+                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+              done
+              ;;
+            3)
+              for repo in "${!WEDNESDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${WEDNESDAY_RELEASES[$repo]}"
+                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+              done
+              ;;
+            4)
+              for repo in "${!THURSDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${THURSDAY_RELEASES[$repo]}"
+                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+              done
+              ;;
+            5)
+              RELEASE_LIST="No scheduled releases on Friday"
+              ;;
+            *)
+              RELEASE_LIST="No scheduled releases for this day"
+              ;;
+          esac
+          
+          # Save to output (escape newlines for GitHub Actions)
+          if [ -z "$RELEASE_LIST" ] || [ "$RELEASE_LIST" == "No scheduled releases"* ]; then
+            echo "RELEASES=$RELEASE_LIST" >> $GITHUB_OUTPUT
+            echo "HAS_RELEASES=false" >> $GITHUB_OUTPUT
+          else
+            # Escape the release list for multi-line output
+            echo "RELEASES<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$RELEASE_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "HAS_RELEASES=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for pre-releases in scheduled repos
+        id: check_prereleases
+        if: steps.get_releases.outputs.HAS_RELEASES == 'true'
+        run: |
+          # This step would check each scheduled repo for existing pre-releases
+          # For now, we'll create a placeholder that can be expanded
+          
+          PRERELEASE_INFO=""
+          DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
+          
+          # Get list of repos for today (simplified version)
+          case $DAY_NUM in
+            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
+            2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
+            3) REPOS="nri-couchbase nri-rabbitmq nri-kafka nri-prometheus nri-cassandra nri-nginx nrjmx" ;;
+            4) REPOS="nri-f5 nri-vsphere infrastructure-bundle nri-ecs nri-statsd nri-jmx" ;;
+            *) REPOS="" ;;
+          esac
+          
+          # Check for pre-releases in each repo
+          for repo in $REPOS; do
+            # Using GitHub API to check for pre-releases
+            # Note: This requires GITHUB_TOKEN to have appropriate permissions
+            LATEST_PRERELEASE=$(curl -s \
+              -H "Authorization: token ${{ github.token }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository_owner }}/${repo}/releases" \
+              | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
+            
+            if [ -n "$LATEST_PRERELEASE" ]; then
+              PRERELEASE_INFO="${PRERELEASE_INFO}• \`${repo}\` has pre-release: ${LATEST_PRERELEASE}\n"
+            fi
+          done
+          
+          if [ -z "$PRERELEASE_INFO" ]; then
+            echo "PRERELEASE_STATUS=No pre-releases found for today's scheduled repos" >> $GITHUB_OUTPUT
+          else
+            echo "PRERELEASE_STATUS<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$PRERELEASE_INFO" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Format Slack message
+        id: format_message
+        run: |
+          # Build the complete Slack message
+          MESSAGE="# 📅 Daily Release Status Report - ${{ steps.get_day.outputs.DAY_NAME }}\n\n"
+          MESSAGE="${MESSAGE}${{ steps.check_status.outputs.STATUS_MESSAGE }}\n\n"
+          
+          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+            MESSAGE="${MESSAGE}## 🚀 Scheduled Releases for Today:\n"
+            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}\n"
+            
+            if [ -n "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" ]; then
+              MESSAGE="${MESSAGE}## 📦 Pre-release Status:\n"
+              MESSAGE="${MESSAGE}${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}\n"
+            fi
+          else
+            MESSAGE="${MESSAGE}## 📋 Scheduled Releases:\n"
+            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}\n"
+          fi
+          
+          # Add workflow run link
+          MESSAGE="${MESSAGE}\n---\n"
+          MESSAGE="${MESSAGE}_Generated by [Workflow Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
+          
+          # Save formatted message
+          echo "SLACK_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: |
+            ${{ steps.format_message.outputs.SLACK_MESSAGE }}
+
+      - name: Summary
+        run: |
+          echo "## Release Status Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Day:** ${{ steps.get_day.outputs.DAY_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Automatic Releases:** ${{ steps.check_status.outputs.RELEASES_ENABLED == 'true' && 'Enabled ✅' || 'Blocked 🚫' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+            echo "### Scheduled Releases:" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.get_releases.outputs.RELEASES }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### No releases scheduled for today" >> $GITHUB_STEP_SUMMARY
+          fi
