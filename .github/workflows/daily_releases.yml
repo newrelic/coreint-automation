@@ -77,45 +77,45 @@ jobs:
         run: |
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
-          # Define all integrations with their schedules
+          # Define all integrations with their schedules (UTC and IST)
           declare -A MONDAY_RELEASES=(
-            ["nri-consul"]="02:00 UTC|Package"
-            ["nri-mysql"]="05:30 UTC|Package"
-            ["nri-memcached"]="07:30 UTC|Package"
-            ["nri-redis"]="09:30 UTC|Package"
-            ["nri-varnish"]="11:30 UTC|Package"
-            ["nri-discovery"]="13:00 UTC|GITHUB BINARY"
-            ["nri-apache"]="13:00 UTC|Package"
-            ["nri-postgresql"]="15:00 UTC|Package"
+            ["nri-consul"]="02:00 UTC (07:30 IST)|Package"
+            ["nri-mysql"]="05:30 UTC (11:00 IST)|Package"
+            ["nri-memcached"]="07:30 UTC (13:00 IST)|Package"
+            ["nri-redis"]="09:30 UTC (15:00 IST)|Package"
+            ["nri-varnish"]="11:30 UTC (17:00 IST)|Package"
+            ["nri-discovery"]="13:00 UTC (18:30 IST)|GITHUB BINARY"
+            ["nri-apache"]="13:00 UTC (18:30 IST)|Package"
+            ["nri-postgresql"]="15:00 UTC (20:30 IST)|Package"
           )
           
           declare -A TUESDAY_RELEASES=(
-            ["nri-haproxy"]="02:00 UTC|Package"
-            ["nri-nagios"]="03:30 UTC|Package"
-            ["nri-elasticsearch"]="05:30 UTC|Package"
-            ["nri-mongodb"]="07:30 UTC|Package"
-            ["nri-mssql"]="09:30 UTC|Package"
-            ["nri-oracledb"]="13:00 UTC|Package"
-            ["nri-docker"]="15:00 UTC|PACKAGE"
+            ["nri-haproxy"]="02:00 UTC (07:30 IST)|Package"
+            ["nri-nagios"]="03:30 UTC (09:00 IST)|Package"
+            ["nri-elasticsearch"]="05:30 UTC (11:00 IST)|Package"
+            ["nri-mongodb"]="07:30 UTC (13:00 IST)|Package"
+            ["nri-mssql"]="09:30 UTC (15:00 IST)|Package"
+            ["nri-oracledb"]="13:00 UTC (18:30 IST)|Package"
+            ["nri-docker"]="15:00 UTC (20:30 IST)|PACKAGE"
           )
           
           declare -A WEDNESDAY_RELEASES=(
-            ["nri-couchbase"]="02:30 UTC|PACKAGE"
-            ["nri-rabbitmq"]="05:30 UTC|PACKAGE"
-            ["nri-kafka"]="10:30 UTC|Package"
-            ["nri-prometheus"]="12:00 UTC|IMAGE"
-            ["nri-cassandra"]="13:30 UTC|Package"
-            ["nri-nginx"]="17:00 UTC|Package"
-            ["nrjmx"]="19:00 UTC|Package"
+            ["nri-couchbase"]="02:30 UTC (08:00 IST)|PACKAGE"
+            ["nri-rabbitmq"]="05:30 UTC (11:00 IST)|PACKAGE"
+            ["nri-kafka"]="10:30 UTC (16:00 IST)|Package"
+            ["nri-prometheus"]="12:00 UTC (17:30 IST)|IMAGE"
+            ["nri-cassandra"]="13:30 UTC (19:00 IST)|Package"
+            ["nri-nginx"]="17:00 UTC (22:30 IST)|Package"
+            ["nrjmx"]="19:00 UTC (00:30 IST next day)|Package"
           )
           
           declare -A THURSDAY_RELEASES=(
-            ["nri-f5"]="05:00 UTC|Package"
-            ["nri-vsphere"]="09:00 UTC|Package"
-            ["infrastructure-bundle"]="10:00 UTC|IMAGE"
-            ["nri-ecs"]="15:00 UTC|Image"
-            ["nri-statsd"]="17:00 UTC|Image"
-            ["nri-jmx"]="19:00 UTC|Package"
+            ["nri-f5"]="05:00 UTC (10:30 IST)|Package"
+            ["nri-vsphere"]="09:00 UTC (14:30 IST)|Package"
+            ["infrastructure-bundle"]="10:00 UTC (15:30 IST)|IMAGE"
+            ["nri-ecs"]="15:00 UTC (20:30 IST)|Image"
+            ["nri-statsd"]="17:00 UTC (22:30 IST)|Image"
+            ["nri-jmx"]="19:00 UTC (00:30 IST next day)|Package"
           )
           
           # Build release list based on day
@@ -124,25 +124,25 @@ jobs:
             1)
               for repo in "${!MONDAY_RELEASES[@]}"; do
                 IFS='|' read -r time type <<< "${MONDAY_RELEASES[$repo]}"
-                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+                RELEASE_LIST="${RELEASE_LIST}• **${repo}** - ${time} (${type})\n"
               done
               ;;
             2)
               for repo in "${!TUESDAY_RELEASES[@]}"; do
                 IFS='|' read -r time type <<< "${TUESDAY_RELEASES[$repo]}"
-                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+                RELEASE_LIST="${RELEASE_LIST}• **${repo}** - ${time} (${type})\n"
               done
               ;;
             3)
               for repo in "${!WEDNESDAY_RELEASES[@]}"; do
                 IFS='|' read -r time type <<< "${WEDNESDAY_RELEASES[$repo]}"
-                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+                RELEASE_LIST="${RELEASE_LIST}• **${repo}** - ${time} (${type})\n"
               done
               ;;
             4)
               for repo in "${!THURSDAY_RELEASES[@]}"; do
                 IFS='|' read -r time type <<< "${THURSDAY_RELEASES[$repo]}"
-                RELEASE_LIST="${RELEASE_LIST}• \`${repo}\` - ${time} (${type})\n"
+                RELEASE_LIST="${RELEASE_LIST}• **${repo}** - ${time} (${type})\n"
               done
               ;;
             5)
@@ -168,14 +168,13 @@ jobs:
       - name: Check for pre-releases in scheduled repos
         id: check_prereleases
         if: steps.get_releases.outputs.HAS_RELEASES == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # This step would check each scheduled repo for existing pre-releases
-          # For now, we'll create a placeholder that can be expanded
-          
           PRERELEASE_INFO=""
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
-          # Get list of repos for today (simplified version)
+          # Get list of repos for today
           case $DAY_NUM in
             1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
             2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
@@ -186,16 +185,26 @@ jobs:
           
           # Check for pre-releases in each repo
           for repo in $REPOS; do
-            # Using GitHub API to check for pre-releases
-            # Note: This requires GITHUB_TOKEN to have appropriate permissions
-            LATEST_PRERELEASE=$(curl -s \
-              -H "Authorization: token ${{ github.token }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${{ github.repository_owner }}/${repo}/releases" \
-              | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
+            echo "Checking releases for newrelic/${repo}..."
             
-            if [ -n "$LATEST_PRERELEASE" ]; then
-              PRERELEASE_INFO="${PRERELEASE_INFO}• \`${repo}\` has pre-release: ${LATEST_PRERELEASE}\n"
+            # Using GitHub API to check for pre-releases
+            RESPONSE=$(curl -s \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/newrelic/${repo}/releases")
+            
+            # Check if we got a valid response
+            if echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
+              LATEST_PRERELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
+              
+              if [ -n "$LATEST_PRERELEASE" ] && [ "$LATEST_PRERELEASE" != "null" ]; then
+                PRERELEASE_INFO="${PRERELEASE_INFO}• \\\`${repo}\\\` has pre-release: ${LATEST_PRERELEASE}\n"
+                echo "  Found pre-release: ${LATEST_PRERELEASE}"
+              else
+                echo "  No pre-release found"
+              fi
+            else
+              echo "  Unable to fetch releases (repo might not exist or access denied)"
             fi
           done
           
@@ -210,29 +219,42 @@ jobs:
       - name: Format Slack message
         id: format_message
         run: |
-          # Build the complete Slack message
-          MESSAGE="# 📅 Daily Release Status Report - ${{ steps.get_day.outputs.DAY_NAME }}\n\n"
-          MESSAGE="${MESSAGE}${{ steps.check_status.outputs.STATUS_MESSAGE }}\n\n"
+          # Build the complete Slack message (escape backticks properly)
+          MESSAGE="# 📅 Daily Release Status Report - ${{ steps.get_day.outputs.DAY_NAME }}"
+          MESSAGE="${MESSAGE}\n\n"
+          MESSAGE="${MESSAGE}${{ steps.check_status.outputs.STATUS_MESSAGE }}"
+          MESSAGE="${MESSAGE}\n\n"
           
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
-            MESSAGE="${MESSAGE}## 🚀 Scheduled Releases for Today:\n"
-            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}\n"
+            MESSAGE="${MESSAGE}## 🚀 Scheduled Releases for Today:"
+            MESSAGE="${MESSAGE}\n"
+            # The RELEASES output already has escaped backticks
+            RELEASES_CONTENT=$(echo -e "${{ steps.get_releases.outputs.RELEASES }}")
+            MESSAGE="${MESSAGE}${RELEASES_CONTENT}"
+            MESSAGE="${MESSAGE}\n"
             
-            if [ -n "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" ]; then
-              MESSAGE="${MESSAGE}## 📦 Pre-release Status:\n"
-              MESSAGE="${MESSAGE}${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}\n"
+            if [ -n "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" ] && [ "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" != "No pre-releases found for today's scheduled repos" ]; then
+              MESSAGE="${MESSAGE}## 📦 Pre-release Status:"
+              MESSAGE="${MESSAGE}\n"
+              PRERELEASE_CONTENT=$(echo -e "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}")
+              MESSAGE="${MESSAGE}${PRERELEASE_CONTENT}"
+              MESSAGE="${MESSAGE}\n"
             fi
           else
-            MESSAGE="${MESSAGE}## 📋 Scheduled Releases:\n"
-            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}\n"
+            MESSAGE="${MESSAGE}## 📋 Scheduled Releases:"
+            MESSAGE="${MESSAGE}\n"
+            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}"
+            MESSAGE="${MESSAGE}\n"
           fi
           
           # Add workflow run link
           MESSAGE="${MESSAGE}\n---\n"
           MESSAGE="${MESSAGE}_Generated by [Workflow Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
           
-          # Save formatted message
-          echo "SLACK_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          # Save formatted message (properly escaped)
+          cat << 'SLACK_EOF' >> $GITHUB_OUTPUT
+          SLACK_MESSAGE<<EOF
+          SLACK_EOF
           echo -e "$MESSAGE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
