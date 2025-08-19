@@ -354,17 +354,12 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
-        uses: 8398a7/action-slack@v3
+        uses: archive/github-actions-slack@master
         with:
-          status: custom
-          custom_payload: |
-            {
-              "text": "${{ steps.format_message.outputs.SLACK_MESSAGE }}",
-              "username": "Release Bot",
-              "icon_emoji": ":rocket:"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.COREINT_SLACK_WEBHOOK_URL }}
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: ${{ steps.format_message.outputs.SLACK_MESSAGE }}
+          slack-optional-parse: full
 
       - name: Summary
         run: |
