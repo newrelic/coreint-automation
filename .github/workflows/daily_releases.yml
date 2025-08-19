@@ -174,6 +174,46 @@ jobs:
           PRERELEASE_INFO=""
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
+          # Function to compare semantic versions
+          # Returns 0 if version1 > version2, 1 otherwise
+          compare_versions() {
+            local v1="${1#v}"  # Remove 'v' prefix if present
+            local v2="${2#v}"
+            
+            # Handle empty/null versions
+            [ -z "$v2" ] && return 0
+            [ -z "$v1" ] && return 1
+            
+            # Split versions into components
+            IFS='.' read -r -a ver1 <<< "$v1"
+            IFS='.' read -r -a ver2 <<< "$v2"
+            
+            # Compare major.minor.patch
+            for i in 0 1 2; do
+              local num1="${ver1[$i]:-0}"
+              local num2="${ver2[$i]:-0}"
+              
+              # Remove any non-numeric suffix (like -rc1, -beta)
+              num1="${num1%%-*}"
+              num2="${num2%%-*}"
+              
+              if [ "$num1" -gt "$num2" ]; then
+                return 0
+              elif [ "$num1" -lt "$num2" ]; then
+                return 1
+              fi
+            done
+            
+            # If base versions are equal, pre-release < release
+            if [[ "$v1" == *"-"* ]] && [[ "$v2" != *"-"* ]]; then
+              return 1
+            elif [[ "$v1" != *"-"* ]] && [[ "$v2" == *"-"* ]]; then
+              return 0
+            fi
+            
+            return 1  # versions are equal or v1 <= v2
+          }
+          
           # Get list of repos for today
           case $DAY_NUM in
             1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
@@ -187,7 +227,7 @@ jobs:
           for repo in $REPOS; do
             echo "Checking releases for newrelic/${repo}..."
             
-            # Using GitHub API to check for pre-releases
+            # Using GitHub API to check for releases
             RESPONSE=$(curl -s \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
@@ -195,11 +235,23 @@ jobs:
             
             # Check if we got a valid response
             if echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
+              # Get latest release (non-prerelease)
+              LATEST_RELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==false) | .tag_name' | head -1)
+              
+              # Get latest pre-release
               LATEST_PRERELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
               
               if [ -n "$LATEST_PRERELEASE" ] && [ "$LATEST_PRERELEASE" != "null" ]; then
-                PRERELEASE_INFO="${PRERELEASE_INFO}• \\\`${repo}\\\` has pre-release: ${LATEST_PRERELEASE}\n"
                 echo "  Found pre-release: ${LATEST_PRERELEASE}"
+                echo "  Latest release: ${LATEST_RELEASE:-none}"
+                
+                # Only include pre-release if it's newer than the latest release
+                if compare_versions "$LATEST_PRERELEASE" "$LATEST_RELEASE"; then
+                  PRERELEASE_INFO="${PRERELEASE_INFO}| **${repo}** | ${LATEST_PRERELEASE} | ${LATEST_RELEASE:-N/A} | 🆕 |\n"
+                  echo "  Pre-release ${LATEST_PRERELEASE} is newer than release ${LATEST_RELEASE}"
+                else
+                  echo "  Pre-release ${LATEST_PRERELEASE} is not newer than release ${LATEST_RELEASE}, skipping"
+                fi
               else
                 echo "  No pre-release found"
               fi
@@ -209,53 +261,53 @@ jobs:
           done
           
           if [ -z "$PRERELEASE_INFO" ]; then
-            echo "PRERELEASE_STATUS=No pre-releases found for today's scheduled repos" >> $GITHUB_OUTPUT
+            echo "PRERELEASE_STATUS=No new pre-releases ready for promotion" >> $GITHUB_OUTPUT
+            echo "HAS_PRERELEASES=false" >> $GITHUB_OUTPUT
           else
+            # Add table header
+            TABLE_HEADER="| Repository | Pre-release | Latest Release | Status |\n"
+            TABLE_HEADER="${TABLE_HEADER}|------------|-------------|----------------|--------|\n"
+            
             echo "PRERELEASE_STATUS<<EOF" >> $GITHUB_OUTPUT
-            echo -e "$PRERELEASE_INFO" >> $GITHUB_OUTPUT
+            echo -e "${TABLE_HEADER}${PRERELEASE_INFO}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+            echo "HAS_PRERELEASES=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Format Slack message
         id: format_message
         run: |
-          # Build the complete Slack message (escape backticks properly)
-          MESSAGE="# 📅 Daily Release Status Report - ${{ steps.get_day.outputs.DAY_NAME }}"
-          MESSAGE="${MESSAGE}\n\n"
-          MESSAGE="${MESSAGE}${{ steps.check_status.outputs.STATUS_MESSAGE }}"
-          MESSAGE="${MESSAGE}\n\n"
+          # Create a properly formatted Slack message using printf to avoid backtick issues
           
-          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
-            MESSAGE="${MESSAGE}## 🚀 Scheduled Releases for Today:"
-            MESSAGE="${MESSAGE}\n"
-            # The RELEASES output already has escaped backticks
-            RELEASES_CONTENT=$(echo -e "${{ steps.get_releases.outputs.RELEASES }}")
-            MESSAGE="${MESSAGE}${RELEASES_CONTENT}"
-            MESSAGE="${MESSAGE}\n"
+          # Start building the message
+          {
+            printf "# 📅 Daily Release Status Report - %s\n\n" "${{ steps.get_day.outputs.DAY_NAME }}"
+            printf "%s\n\n" "${{ steps.check_status.outputs.STATUS_MESSAGE }}"
             
-            if [ -n "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" ] && [ "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" != "No pre-releases found for today's scheduled repos" ]; then
-              MESSAGE="${MESSAGE}## 📦 Pre-release Status:"
-              MESSAGE="${MESSAGE}\n"
-              PRERELEASE_CONTENT=$(echo -e "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}")
-              MESSAGE="${MESSAGE}${PRERELEASE_CONTENT}"
-              MESSAGE="${MESSAGE}\n"
+            if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+              printf "## 🚀 Scheduled Releases for Today:\n"
+              printf "%s\n" "${{ steps.get_releases.outputs.RELEASES }}"
+              
+              if [ -n "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" ] && [ "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" != "No pre-releases found for today's scheduled repos" ]; then
+                printf "## 📦 Pre-release Status:\n"
+                printf "%s\n" "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}"
+              fi
+            else
+              printf "## 📋 Scheduled Releases:\n"
+              printf "%s\n" "${{ steps.get_releases.outputs.RELEASES }}"
             fi
-          else
-            MESSAGE="${MESSAGE}## 📋 Scheduled Releases:"
-            MESSAGE="${MESSAGE}\n"
-            MESSAGE="${MESSAGE}${{ steps.get_releases.outputs.RELEASES }}"
-            MESSAGE="${MESSAGE}\n"
-          fi
+            
+            printf "\n---\n"
+            printf "_Generated by [Workflow Run #%s](%s/%s/actions/runs/%s)_" \
+              "${{ github.run_number }}" \
+              "${{ github.server_url }}" \
+              "${{ github.repository }}" \
+              "${{ github.run_id }}"
+          } > slack_message.txt
           
-          # Add workflow run link
-          MESSAGE="${MESSAGE}\n---\n"
-          MESSAGE="${MESSAGE}_Generated by [Workflow Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
-          
-          # Save formatted message (properly escaped)
-          cat << 'SLACK_EOF' >> $GITHUB_OUTPUT
-          SLACK_MESSAGE<<EOF
-          SLACK_EOF
-          echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+          # Read the message and save to output
+          echo "SLACK_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          cat slack_message.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
