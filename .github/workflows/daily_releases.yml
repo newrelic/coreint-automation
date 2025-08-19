@@ -42,10 +42,10 @@ jobs:
         run: |
           if [ -f "${{ env.UNBLOCK_FILE_NAME }}" ]; then
             echo "RELEASES_ENABLED=true" >> $GITHUB_OUTPUT
-            echo "STATUS_MESSAGE=✅ **Automatic releases are ENABLED**" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=:white_check_mark: *Automatic releases are ENABLED*" >> $GITHUB_OUTPUT
           else
             echo "RELEASES_ENABLED=false" >> $GITHUB_OUTPUT
-            echo "STATUS_MESSAGE=🚫 **Automatic releases are BLOCKED**" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=:no_entry_sign: *Automatic releases are BLOCKED*" >> $GITHUB_OUTPUT
           fi
           
       - name: Determine day to check
@@ -118,18 +118,16 @@ jobs:
             ["nri-jmx"]="19:00 UTC (00:30 IST next day)|Package"
           )
           
-          # Build release list based on day - in table format
-          RELEASE_TABLE="| Repository | Schedule (UTC) | Schedule (IST) | Type |\n"
-          RELEASE_TABLE="${RELEASE_TABLE}|------------|----------------|----------------|------|\n"
+          # Build release list for Slack formatting with proper spacing
+          RELEASE_LIST=""
           
           case $DAY_NUM in
             1)
               for repo in "${!MONDAY_RELEASES[@]}"; do
                 IFS='|' read -r time type <<< "${MONDAY_RELEASES[$repo]}"
-                # Split UTC and IST times
                 UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
                 IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
-                RELEASE_TABLE="${RELEASE_TABLE}| **${repo}** | ${UTC_TIME} | ${IST_TIME} | ${type} |\n"
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
               done
               ;;
             2)
@@ -137,7 +135,7 @@ jobs:
                 IFS='|' read -r time type <<< "${TUESDAY_RELEASES[$repo]}"
                 UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
                 IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
-                RELEASE_TABLE="${RELEASE_TABLE}| **${repo}** | ${UTC_TIME} | ${IST_TIME} | ${type} |\n"
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
               done
               ;;
             3)
@@ -145,7 +143,7 @@ jobs:
                 IFS='|' read -r time type <<< "${WEDNESDAY_RELEASES[$repo]}"
                 UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
                 IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
-                RELEASE_TABLE="${RELEASE_TABLE}| **${repo}** | ${UTC_TIME} | ${IST_TIME} | ${type} |\n"
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
               done
               ;;
             4)
@@ -153,25 +151,24 @@ jobs:
                 IFS='|' read -r time type <<< "${THURSDAY_RELEASES[$repo]}"
                 UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
                 IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
-                RELEASE_TABLE="${RELEASE_TABLE}| **${repo}** | ${UTC_TIME} | ${IST_TIME} | ${type} |\n"
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
               done
               ;;
             5)
-              RELEASE_TABLE="No scheduled releases on Friday 😴"
+              RELEASE_LIST="No scheduled releases on Friday :sleeping:"
               ;;
             *)
-              RELEASE_TABLE="No scheduled releases for this day"
+              RELEASE_LIST="No scheduled releases for this day"
               ;;
           esac
           
-          # Save to output (escape newlines for GitHub Actions)
-          if [[ "$RELEASE_TABLE" == "No scheduled releases"* ]]; then
-            echo "RELEASES=$RELEASE_TABLE" >> $GITHUB_OUTPUT
+          # Save to output
+          if [[ "$RELEASE_LIST" == "No scheduled releases"* ]]; then
+            echo "RELEASES=$RELEASE_LIST" >> $GITHUB_OUTPUT
             echo "HAS_RELEASES=false" >> $GITHUB_OUTPUT
           else
-            # Escape the release list for multi-line output
             echo "RELEASES<<EOF" >> $GITHUB_OUTPUT
-            echo -e "$RELEASE_TABLE" >> $GITHUB_OUTPUT
+            echo -e "$RELEASE_LIST" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             echo "HAS_RELEASES=true" >> $GITHUB_OUTPUT
           fi
@@ -258,7 +255,7 @@ jobs:
                 
                 # Only include pre-release if it's newer than the latest release
                 if compare_versions "$LATEST_PRERELEASE" "$LATEST_RELEASE"; then
-                  PRERELEASE_INFO="${PRERELEASE_INFO}| **${repo}** | ${LATEST_PRERELEASE} | ${LATEST_RELEASE:-N/A} | 🆕 |\n"
+                  PRERELEASE_INFO="${PRERELEASE_INFO}• *${repo}* - Pre-release: \`${LATEST_PRERELEASE}\` | Latest: \`${LATEST_RELEASE:-N/A}\` :arrow_up:\n"
                   echo "  Pre-release ${LATEST_PRERELEASE} is newer than release ${LATEST_RELEASE}"
                 else
                   echo "  Pre-release ${LATEST_PRERELEASE} is not newer than release ${LATEST_RELEASE}, skipping"
@@ -275,12 +272,8 @@ jobs:
             echo "PRERELEASE_STATUS=No new pre-releases ready for promotion" >> $GITHUB_OUTPUT
             echo "HAS_PRERELEASES=false" >> $GITHUB_OUTPUT
           else
-            # Add table header
-            TABLE_HEADER="| Repository | Pre-release | Latest Release | Status |\n"
-            TABLE_HEADER="${TABLE_HEADER}|------------|-------------|----------------|--------|\n"
-            
             echo "PRERELEASE_STATUS<<EOF" >> $GITHUB_OUTPUT
-            echo -e "${TABLE_HEADER}${PRERELEASE_INFO}" >> $GITHUB_OUTPUT
+            echo -e "$PRERELEASE_INFO" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             echo "HAS_PRERELEASES=true" >> $GITHUB_OUTPUT
           fi
@@ -288,87 +281,72 @@ jobs:
       - name: Format Slack message
         id: format_message
         run: |
-          # Create a properly formatted Slack message with emojis and tables
-          
-          # Determine status emoji
-          if [ "${{ steps.check_status.outputs.RELEASES_ENABLED }}" == "true" ]; then
-            STATUS_EMOJI="✅"
-            STATUS_TEXT="ENABLED"
-          else
-            STATUS_EMOJI="🚫"
-            STATUS_TEXT="BLOCKED"
-          fi
+          # Create a properly formatted Slack message with proper Slack markup
+          CURRENT_TIME=$(date -u '+%H:%M')
           
           # Start building the message
-          cat > slack_message.txt << 'MESSAGE_END'
-          # 📅 Daily Release Status Report
-          ## 🗓️ ${{ steps.get_day.outputs.DAY_NAME }} | ⏰ Generated at $(date -u '+%H:%M') UTC
-          
-          ---
-          
-          ### 🚦 Automatic Release Status
+          cat > slack_message.txt << MESSAGE_END
+          :calendar: *Daily Release Status Report*
+          :clock1: ${{ steps.get_day.outputs.DAY_NAME }} | Generated at ${CURRENT_TIME} UTC
+
+          ────────────────────────────────────
+
+          :traffic_light: *Automatic Release Status*
           ${{ steps.check_status.outputs.STATUS_MESSAGE }}
-          
+
           MESSAGE_END
           
           # Add scheduled releases section
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
             cat >> slack_message.txt << 'MESSAGE_END'
-          ### 🚀 Today's Scheduled Releases
-          
+          :rocket: *Today's Scheduled Releases*
+
           ${{ steps.get_releases.outputs.RELEASES }}
-          
+
           MESSAGE_END
             
             # Add pre-release section if there are any
             if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
               cat >> slack_message.txt << 'MESSAGE_END'
-          ### 📦 Pre-releases Ready for Promotion
-          🎯 The following pre-releases are newer than their latest releases and will be promoted:
-          
+          :package: *Pre-releases Ready for Promotion*
+          :dart: The following pre-releases are newer than their latest releases and will be promoted:
+
           ${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}
-          
+
           MESSAGE_END
             else
               cat >> slack_message.txt << 'MESSAGE_END'
-          ### 📦 Pre-release Status
-          ℹ️ No new pre-releases ready for promotion today.
-          
+          :package: *Pre-release Status*
+          :information_source: No new pre-releases ready for promotion today.
+
           MESSAGE_END
             fi
             
             # Add summary stats
-            REPO_COUNT=$(echo "${{ steps.get_releases.outputs.RELEASES }}" | grep -c "| \*\*" || echo "0")
-            PRERELEASE_COUNT=$(echo "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" | grep -c "🆕" || echo "0")
+            REPO_COUNT=$(echo "${{ steps.get_releases.outputs.RELEASES }}" | grep -c "^•" || echo "0")
+            PRERELEASE_COUNT=$(echo "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" | grep -c ":arrow_up:" || echo "0")
             
             {
-              echo "### 📊 Summary"
-              echo "• 📅 **Total scheduled releases:** $REPO_COUNT"
-              echo "• 🆕 **Pre-releases to promote:** $PRERELEASE_COUNT"
+              echo ":bar_chart: *Summary*"
+              echo "• :calendar: *Total scheduled releases:* $REPO_COUNT"
+              echo "• :new: *Pre-releases to promote:* $PRERELEASE_COUNT"
               
               if [ "${{ steps.check_status.outputs.RELEASES_ENABLED }}" == "true" ]; then
-                echo "• ✅ **Status:** Ready to release! 🎉"
+                echo "• :white_check_mark: *Status:* Ready to release! :tada:"
               else
-                echo "• ⚠️ **Status:** Releases blocked - manual intervention required"
+                echo "• :warning: *Status:* Releases blocked - manual intervention required"
               fi
               echo ""
             } >> slack_message.txt
           else
             cat >> slack_message.txt << 'MESSAGE_END'
-          ### 📋 Release Schedule
-          😴 ${{ steps.get_releases.outputs.RELEASES }}
-          
+          :clipboard: *Release Schedule*
+          :sleeping: ${{ steps.get_releases.outputs.RELEASES }}
+
           MESSAGE_END
           fi
           
-          # Add footer
-          cat >> slack_message.txt << MESSAGE_END
-          ---
-          _🤖 Generated by [Workflow Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_
-          _💡 To $([ "${{ steps.check_status.outputs.RELEASES_ENABLED }}" == "true" ] && echo "disable" || echo "enable") automatic releases, trigger the appropriate workflow_
-          MESSAGE_END
-          
-          # Save to GitHub output
+          # Save to GitHub output (no footer with workflow link)
           {
             echo "SLACK_MESSAGE<<EOF"
             cat slack_message.txt
@@ -376,12 +354,17 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
-        uses: archive/github-actions-slack@master
+        uses: 8398a7/action-slack@v3
         with:
-          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
-          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
-          slack-text: |
-            ${{ steps.format_message.outputs.SLACK_MESSAGE }}
+          status: custom
+          custom_payload: |
+            {
+              "text": "${{ steps.format_message.outputs.SLACK_MESSAGE }}",
+              "username": "Release Bot",
+              "icon_emoji": ":rocket:"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.COREINT_SLACK_WEBHOOK_URL }}
 
       - name: Summary
         run: |
