@@ -4,9 +4,6 @@ on:
   schedule:
     # Run daily at 00:00 UTC
     - cron: '0 0 * * *'
-  pull_request:
-    branches: [ main ]
-
   workflow_dispatch:
     inputs:
       specific_day:
