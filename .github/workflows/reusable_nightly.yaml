@@ -129,4 +129,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.slack_token }}
           slack-channel: ${{ secrets.slack_channel }}
-          slack-text: "❌ `${{ inputs.docker_image }}`: [Nightly tests/release failed](${{ github.server_url }}/${{ inputs.docker_image }}/actions/runs/${{ github.run_id }})."
+          slack-text: "❌ `${{ inputs.docker_image }}:${{ inputs.docker_tag }}`: [Nightly tests/release failed](${{ github.server_url }}/${{ inputs.docker_image }}/actions/runs/${{ github.run_id }})."

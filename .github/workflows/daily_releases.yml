@@ -1,0 +1,377 @@
+name: Daily Release Status Notification
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      specific_day:
+        description: 'Check releases for a specific day (1=Monday, 2=Tuesday, etc.)'
+        required: false
+        type: choice
+        options:
+          - 'today'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+        default: 'today'
+
+env:
+  UNBLOCK_FILE_NAME: automatic_release_enable
+  BRANCH: gh-pages
+
+jobs:
+  check-and-notify:
+    name: Check Release Status and Send Notification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          
+      - name: Check if automatic releases are enabled
+        id: check_status
+        run: |
+          if [ -f "${{ env.UNBLOCK_FILE_NAME }}" ]; then
+            echo "RELEASES_ENABLED=true" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=:white_check_mark: *Automatic releases are ENABLED*" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASES_ENABLED=false" >> $GITHUB_OUTPUT
+            echo "STATUS_MESSAGE=:no_entry_sign: *Automatic releases are BLOCKED*" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Determine day to check
+        id: get_day
+        run: |
+          if [ "${{ github.event.inputs.specific_day }}" == "today" ] || [ -z "${{ github.event.inputs.specific_day }}" ]; then
+            # Get current day of week (1=Monday, 2=Tuesday, etc.)
+            DAY_NUM=$(date +%u)
+          else
+            DAY_NUM="${{ github.event.inputs.specific_day }}"
+          fi
+          
+          echo "DAY_NUMBER=$DAY_NUM" >> $GITHUB_OUTPUT
+          
+          # Map day number to day name
+          case $DAY_NUM in
+            1) DAY_NAME="Monday" ;;
+            2) DAY_NAME="Tuesday" ;;
+            3) DAY_NAME="Wednesday" ;;
+            4) DAY_NAME="Thursday" ;;
+            5) DAY_NAME="Friday" ;;
+            *) DAY_NAME="Invalid Day" ;;
+          esac
+          
+          echo "DAY_NAME=$DAY_NAME" >> $GITHUB_OUTPUT
+          
+      - name: Get scheduled releases for today
+        id: get_releases
+        run: |
+          DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
+          
+          # Define all integrations with their schedules (UTC and IST)
+          declare -A MONDAY_RELEASES=(
+            ["nri-consul"]="02:00 UTC (07:30 IST)|Package"
+            ["nri-mysql"]="05:30 UTC (11:00 IST)|Package"
+            ["nri-memcached"]="07:30 UTC (13:00 IST)|Package"
+            ["nri-redis"]="09:30 UTC (15:00 IST)|Package"
+            ["nri-varnish"]="11:30 UTC (17:00 IST)|Package"
+            ["nri-discovery"]="13:00 UTC (18:30 IST)|GITHUB BINARY"
+            ["nri-apache"]="13:00 UTC (18:30 IST)|Package"
+            ["nri-postgresql"]="15:00 UTC (20:30 IST)|Package"
+          )
+          
+          declare -A TUESDAY_RELEASES=(
+            ["nri-haproxy"]="02:00 UTC (07:30 IST)|Package"
+            ["nri-nagios"]="03:30 UTC (09:00 IST)|Package"
+            ["nri-elasticsearch"]="05:30 UTC (11:00 IST)|Package"
+            ["nri-mongodb"]="07:30 UTC (13:00 IST)|Package"
+            ["nri-mssql"]="09:30 UTC (15:00 IST)|Package"
+            ["nri-oracledb"]="13:00 UTC (18:30 IST)|Package"
+            ["nri-docker"]="15:00 UTC (20:30 IST)|PACKAGE"
+          )
+          
+          declare -A WEDNESDAY_RELEASES=(
+            ["nri-couchbase"]="02:30 UTC (08:00 IST)|PACKAGE"
+            ["nri-rabbitmq"]="05:30 UTC (11:00 IST)|PACKAGE"
+            ["nri-kafka"]="10:30 UTC (16:00 IST)|Package"
+            ["nri-prometheus"]="12:00 UTC (17:30 IST)|IMAGE"
+            ["nri-cassandra"]="13:30 UTC (19:00 IST)|Package"
+            ["nri-nginx"]="17:00 UTC (22:30 IST)|Package"
+            ["nrjmx"]="19:00 UTC (00:30 IST next day)|Package"
+          )
+          
+          declare -A THURSDAY_RELEASES=(
+            ["nri-f5"]="05:00 UTC (10:30 IST)|Package"
+            ["nri-vsphere"]="09:00 UTC (14:30 IST)|Package"
+            ["infrastructure-bundle"]="10:00 UTC (15:30 IST)|IMAGE"
+            ["nri-ecs"]="15:00 UTC (20:30 IST)|Image"
+            ["nri-statsd"]="17:00 UTC (22:30 IST)|Image"
+            ["nri-jmx"]="19:00 UTC (00:30 IST next day)|Package"
+          )
+          
+          # Build release list for Slack formatting with proper spacing
+          RELEASE_LIST=""
+          
+          case $DAY_NUM in
+            1)
+              for repo in "${!MONDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${MONDAY_RELEASES[$repo]}"
+                UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
+                IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
+              done
+              ;;
+            2)
+              for repo in "${!TUESDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${TUESDAY_RELEASES[$repo]}"
+                UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
+                IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
+              done
+              ;;
+            3)
+              for repo in "${!WEDNESDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${WEDNESDAY_RELEASES[$repo]}"
+                UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
+                IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
+              done
+              ;;
+            4)
+              for repo in "${!THURSDAY_RELEASES[@]}"; do
+                IFS='|' read -r time type <<< "${THURSDAY_RELEASES[$repo]}"
+                UTC_TIME=$(echo "$time" | sed -n 's/\(.*\) UTC.*/\1 UTC/p')
+                IST_TIME=$(echo "$time" | sed -n 's/.*(\(.*\)).*/\1/p')
+                RELEASE_LIST="${RELEASE_LIST}• *${repo}* - ${UTC_TIME} (${IST_TIME}) - ${type}\n"
+              done
+              ;;
+            5)
+              RELEASE_LIST="No scheduled releases on Friday :sleeping:"
+              ;;
+            *)
+              RELEASE_LIST="No scheduled releases for this day"
+              ;;
+          esac
+          
+          # Save to output
+          if [[ "$RELEASE_LIST" == "No scheduled releases"* ]]; then
+            echo "RELEASES=$RELEASE_LIST" >> $GITHUB_OUTPUT
+            echo "HAS_RELEASES=false" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASES<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$RELEASE_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "HAS_RELEASES=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for pre-releases in scheduled repos
+        id: check_prereleases
+        if: steps.get_releases.outputs.HAS_RELEASES == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE_INFO=""
+          DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
+          
+          # Function to compare semantic versions
+          # Returns 0 if version1 > version2, 1 otherwise
+          compare_versions() {
+            local v1="${1#v}"  # Remove 'v' prefix if present
+            local v2="${2#v}"
+            
+            # Handle empty/null versions
+            [ -z "$v2" ] && return 0
+            [ -z "$v1" ] && return 1
+            
+            # Split versions into components
+            IFS='.' read -r -a ver1 <<< "$v1"
+            IFS='.' read -r -a ver2 <<< "$v2"
+            
+            # Compare major.minor.patch
+            for i in 0 1 2; do
+              local num1="${ver1[$i]:-0}"
+              local num2="${ver2[$i]:-0}"
+              
+              # Remove any non-numeric suffix (like -rc1, -beta)
+              num1="${num1%%-*}"
+              num2="${num2%%-*}"
+              
+              if [ "$num1" -gt "$num2" ]; then
+                return 0
+              elif [ "$num1" -lt "$num2" ]; then
+                return 1
+              fi
+            done
+            
+            # If base versions are equal, pre-release < release
+            if [[ "$v1" == *"-"* ]] && [[ "$v2" != *"-"* ]]; then
+              return 1
+            elif [[ "$v1" != *"-"* ]] && [[ "$v2" == *"-"* ]]; then
+              return 0
+            fi
+            
+            return 1  # versions are equal or v1 <= v2
+          }
+          
+          # Get list of repos for today
+          case $DAY_NUM in
+            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
+            2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
+            3) REPOS="nri-couchbase nri-rabbitmq nri-kafka nri-prometheus nri-cassandra nri-nginx nrjmx" ;;
+            4) REPOS="nri-f5 nri-vsphere infrastructure-bundle nri-ecs nri-statsd nri-jmx" ;;
+            *) REPOS="" ;;
+          esac
+          
+          # Check for pre-releases in each repo
+          for repo in $REPOS; do
+            echo "Checking releases for newrelic/${repo}..."
+            
+            # Using GitHub API to check for releases
+            RESPONSE=$(curl -s \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/newrelic/${repo}/releases")
+            
+            # Check if we got a valid response
+            if echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
+              # Get latest release (non-prerelease)
+              LATEST_RELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==false) | .tag_name' | head -1)
+              
+              # Get latest pre-release
+              LATEST_PRERELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
+              
+              if [ -n "$LATEST_PRERELEASE" ] && [ "$LATEST_PRERELEASE" != "null" ]; then
+                echo "  Found pre-release: ${LATEST_PRERELEASE}"
+                echo "  Latest release: ${LATEST_RELEASE:-none}"
+                
+                # Only include pre-release if it's newer than the latest release
+                if compare_versions "$LATEST_PRERELEASE" "$LATEST_RELEASE"; then
+                  PRERELEASE_INFO="${PRERELEASE_INFO}• *${repo}* - Pre-release: \`${LATEST_PRERELEASE}\` | Latest: \`${LATEST_RELEASE:-N/A}\` :arrow_up:\n"
+                  echo "  Pre-release ${LATEST_PRERELEASE} is newer than release ${LATEST_RELEASE}"
+                else
+                  echo "  Pre-release ${LATEST_PRERELEASE} is not newer than release ${LATEST_RELEASE}, skipping"
+                fi
+              else
+                echo "  No pre-release found"
+              fi
+            else
+              echo "  Unable to fetch releases (repo might not exist or access denied)"
+            fi
+          done
+          
+          if [ -z "$PRERELEASE_INFO" ]; then
+            echo "PRERELEASE_STATUS=No new pre-releases ready for promotion" >> $GITHUB_OUTPUT
+            echo "HAS_PRERELEASES=false" >> $GITHUB_OUTPUT
+          else
+            echo "PRERELEASE_STATUS<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$PRERELEASE_INFO" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "HAS_PRERELEASES=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Format Slack message
+        id: format_message
+        run: |
+          # Create a properly formatted Slack message with proper Slack markup
+          CURRENT_TIME=$(date -u '+%H:%M')
+          
+          # Start building the message
+          cat > slack_message.txt << MESSAGE_END
+          :calendar: *Daily Release Status Report*
+          :clock1: ${{ steps.get_day.outputs.DAY_NAME }} | Generated at ${CURRENT_TIME} UTC
+
+          ────────────────────────────────────
+
+          :traffic_light: *Automatic Release Status*
+          ${{ steps.check_status.outputs.STATUS_MESSAGE }}
+
+          MESSAGE_END
+          
+          # Add scheduled releases section
+          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+            cat >> slack_message.txt << 'MESSAGE_END'
+          :rocket: *Today's Scheduled Releases*
+
+          ${{ steps.get_releases.outputs.RELEASES }}
+
+          MESSAGE_END
+            
+            # Add pre-release section if there are any
+            if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
+              cat >> slack_message.txt << 'MESSAGE_END'
+          :package: *Pre-releases Ready for Promotion*
+          :dart: The following pre-releases are newer than their latest releases and will be promoted:
+
+          ${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}
+
+          MESSAGE_END
+            else
+              cat >> slack_message.txt << 'MESSAGE_END'
+          :package: *Pre-release Status*
+          :information_source: No new pre-releases ready for promotion today.
+
+          MESSAGE_END
+            fi
+            
+            # Add summary stats
+            REPO_COUNT=$(echo "${{ steps.get_releases.outputs.RELEASES }}" | grep -c "^•" || echo "0")
+            PRERELEASE_COUNT=$(echo "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" | grep -c ":arrow_up:" || echo "0")
+            
+            {
+              echo ":bar_chart: *Summary*"
+              echo "• :calendar: *Total scheduled releases:* $REPO_COUNT"
+              echo "• :new: *Pre-releases to promote:* $PRERELEASE_COUNT"
+              
+              if [ "${{ steps.check_status.outputs.RELEASES_ENABLED }}" == "true" ]; then
+                echo "• :white_check_mark: *Status:* Ready to release! :tada:"
+              else
+                echo "• :warning: *Status:* Releases blocked - manual intervention required"
+              fi
+              echo ""
+            } >> slack_message.txt
+          else
+            cat >> slack_message.txt << 'MESSAGE_END'
+          :clipboard: *Release Schedule*
+          :sleeping: ${{ steps.get_releases.outputs.RELEASES }}
+
+          MESSAGE_END
+          fi
+          
+          # Save to GitHub output (no footer with workflow link)
+          {
+            echo "SLACK_MESSAGE<<EOF"
+            cat slack_message.txt
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: ${{ steps.format_message.outputs.SLACK_MESSAGE }}
+          slack-optional-parse: full
+
+      - name: Summary
+        run: |
+          echo "## Release Status Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Day:** ${{ steps.get_day.outputs.DAY_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Automatic Releases:** ${{ steps.check_status.outputs.RELEASES_ENABLED == 'true' && 'Enabled ✅' || 'Blocked 🚫' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+            echo "### Scheduled Releases:" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.get_releases.outputs.RELEASES }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### No releases scheduled for today" >> $GITHUB_STEP_SUMMARY
+          fi
