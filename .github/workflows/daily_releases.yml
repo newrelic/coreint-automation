@@ -320,22 +320,47 @@ jobs:
           cat > slack_message.txt << MESSAGE_END
           :calendar: *Daily Release Status Report*
           :clock1: ${{ steps.get_day.outputs.DAY_NAME }} | Generated at ${CURRENT_TIME} UTC
-
-          ────────────────────────────────────
-
-          :traffic_light: *Automatic Release Status*
-          ${{ steps.check_status.outputs.STATUS_MESSAGE }}
-
           MESSAGE_END
           
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
             cat >> slack_message.txt << 'MESSAGE_END'
-          :rocket: *Today's Scheduled Releases*
-
-          ${{ steps.get_releases.outputs.RELEASES }}
+          :rocket: *Today's Scheduled Releases & Commit Status*
 
           MESSAGE_END
-
+          
+          # Merge Scheduled Releases and Commit Status
+          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
+            IFS=$'\n'
+            
+            # Combine each scheduled repo with its commit status
+            COMBINED_STATUS=""
+            
+            # Note: This assumes the order of repositories is the same in both outputs, which is a reasonable assumption based on the workflow's structure.
+            readarray -t RELEASES_ARRAY <<< "${{ steps.get_releases.outputs.RELEASES }}"
+            readarray -t COMMITS_ARRAY <<< "${{ steps.check_commits.outputs.COMMITS_STATUS }}"
+            
+            for i in "${!RELEASES_ARRAY[@]}"; do
+                RELEASE_LINE="${RELEASES_ARRAY[$i]}"
+                COMMIT_LINE="${COMMITS_ARRAY[$i]}"
+                REPO_NAME=$(echo "$RELEASE_LINE" | sed -n 's/• *\*\([^:]*\)\*.*/\1/p')
+                
+                # Check if new commits were found and append a message
+                if [[ "$COMMIT_LINE" == *":heavy_check_mark:"* ]]; then
+                    COMMIT_INFO=" :heavy_check_mark: Release should happen! 🚀"
+                elif [[ "$COMMIT_LINE" == *":x:"* ]]; then
+                    COMMIT_INFO=" :x: No new commits since last release."
+                elif [[ "$COMMIT_LINE" == *":new:"* ]]; then
+                    COMMIT_INFO=" :new: No releases found - any new commit will trigger a release."
+                else
+                    COMMIT_INFO=" :information_source: Status not available."
+                fi
+                
+                COMBINED_STATUS+="${RELEASE_LINE} - ${COMMIT_INFO}\n"
+            done
+            
+            echo -e "${COMBINED_STATUS}" >> slack_message.txt
+            
+            # Pre-release section
             if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
               cat >> slack_message.txt << 'MESSAGE_END'
           :package: *Pre-releases Ready for Promotion*
@@ -351,15 +376,17 @@ jobs:
 
           MESSAGE_END
             fi
-
-            cat >> slack_message.txt << 'MESSAGE_END'
-          :git: *Commit Status*
-          :information_source: The following indicates if there have been new commits since the last release:
-
-          ${{ steps.check_commits.outputs.COMMITS_STATUS }}
-
-          MESSAGE_END
+          fi
           
+          # Add separator and Automatic Release Status
+          cat >> slack_message.txt << 'MESSAGE_END'
+          ────────────────────────────────────
+
+          :traffic_light: *Automatic Release Status*
+          ${{ steps.check_status.outputs.STATUS_MESSAGE }}
+          
+          MESSAGE_END
+
             REPO_COUNT=$(echo "${{ steps.get_releases.outputs.RELEASES }}" | grep -c "^•" || echo "0")
             PRERELEASE_COUNT=$(echo "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" | grep -c ":arrow_up:" || echo "0")
             COMMITS_COUNT=$(echo "${{ steps.check_commits.outputs.COMMITS_STATUS }}" | grep -c ":heavy_check_mark:" || echo "0")
@@ -378,6 +405,7 @@ jobs:
               echo ""
             } >> slack_message.txt
           else
+            # Fallback for no scheduled releases
             cat >> slack_message.txt << 'MESSAGE_END'
           :clipboard: *Release Schedule*
           :sleeping: ${{ steps.get_releases.outputs.RELEASES }}
