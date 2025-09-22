@@ -198,7 +198,7 @@ jobs:
             # Get commit associated with the latest release (including pre-releases)
             LATEST_RELEASE_SHA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/newrelic/${repo}/releases" | jq -r '.[0].target_commitish')
+              "https://api.github.com/repos/newrelic/${repo}/releases" | jq -r 'if type == "array" then .[0].target_commitish else .target_commitish end')
             
             if [ -z "$LATEST_COMMIT_SHA" ] || [ "$LATEST_COMMIT_SHA" == "null" ]; then
                 echo "  Failed to get latest commit for ${repo}. Skipping."
