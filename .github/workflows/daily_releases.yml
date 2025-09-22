@@ -80,7 +80,7 @@ jobs:
             ["nri-memcached"]="07:30 UTC (13:00 IST)|Package"
             ["nri-redis"]="09:30 UTC (15:00 IST)|Package"
             ["nri-varnish"]="11:30 UTC (17:00 IST)|Package"
-            ["nri-discovery"]="13:00 UTC (18:30 IST)|GITHUB BINARY"
+            ["nri-discovery-kubernetes"]="13:00 UTC (18:30 IST)|GITHUB BINARY"
             ["nri-apache"]="13:00 UTC (18:30 IST)|Package"
             ["nri-postgresql"]="15:00 UTC (20:30 IST)|Package"
           )
@@ -210,7 +210,7 @@ jobs:
           }
           
           case $DAY_NUM in
-            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
+            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery-kubernetes nri-apache nri-postgresql" ;;
             2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
             3) REPOS="nri-couchbase nri-rabbitmq nri-kafka nri-prometheus nri-cassandra nri-nginx nrjmx" ;;
             4) REPOS="nri-f5 nri-vsphere infrastructure-bundle nri-ecs nri-statsd nri-jmx" ;;
@@ -267,7 +267,7 @@ jobs:
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
           case $DAY_NUM in
-            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
+            1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery-kubernetes nri-apache nri-postgresql" ;;
             2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
             3) REPOS="nri-couchbase nri-rabbitmq nri-kafka nri-prometheus nri-cassandra nri-nginx nrjmx" ;;
             4) REPOS="nri-f5 nri-vsphere infrastructure-bundle nri-ecs nri-statsd nri-jmx" ;;
