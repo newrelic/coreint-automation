@@ -320,68 +320,71 @@ jobs:
           cat > slack_message.txt << MESSAGE_END
           :calendar: *Daily Release Status Report*
           :clock1: ${{ steps.get_day.outputs.DAY_NAME }} | Generated at ${CURRENT_TIME} UTC
+          
           MESSAGE_END
           
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
             cat >> slack_message.txt << 'MESSAGE_END'
-          :rocket: *Today's Scheduled Releases & Commit Status*
-
+          :rocket: *Scheduled Releases for Today*
+          
           MESSAGE_END
           
-          # Merge Scheduled Releases and Commit Status
-          if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
-            IFS=$'\n'
-            
-            # Combine each scheduled repo with its commit status
-            COMBINED_STATUS=""
-            
-            # Note: This assumes the order of repositories is the same in both outputs, which is a reasonable assumption based on the workflow's structure.
-            readarray -t RELEASES_ARRAY <<< "${{ steps.get_releases.outputs.RELEASES }}"
-            readarray -t COMMITS_ARRAY <<< "${{ steps.check_commits.outputs.COMMITS_STATUS }}"
-            
-            for i in "${!RELEASES_ARRAY[@]}"; do
-                RELEASE_LINE="${RELEASES_ARRAY[$i]}"
-                COMMIT_LINE="${COMMITS_ARRAY[$i]}"
-                REPO_NAME=$(echo "$RELEASE_LINE" | sed -n 's/• *\*\([^:]*\)\*.*/\1/p')
-                
-                # Check if new commits were found and append a message
-                if [[ "$COMMIT_LINE" == *":heavy_check_mark:"* ]]; then
-                    COMMIT_INFO=" :heavy_check_mark: Release should happen! 🚀"
-                elif [[ "$COMMIT_LINE" == *":x:"* ]]; then
-                    COMMIT_INFO=" :x: No new commits since last release."
-                elif [[ "$COMMIT_LINE" == *":new:"* ]]; then
-                    COMMIT_INFO=" :new: No releases found - any new commit will trigger a release."
-                else
-                    COMMIT_INFO=" :information_source: Status not available."
-                fi
-                
-                COMBINED_STATUS+="${RELEASE_LINE} - ${COMMIT_INFO}\n"
-            done
-            
-            echo -e "${COMBINED_STATUS}" >> slack_message.txt
-            
-            # Pre-release section
-            if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
+          # Group repos with commits and those without
+          COMMITS_FOUND_REPOS=""
+          NO_COMMITS_REPOS=""
+          PRERELEASES_READY=""
+          
+          IFS=$'\n'
+          
+          # Combine each scheduled repo with its commit status
+          readarray -t RELEASES_ARRAY <<< "${{ steps.get_releases.outputs.RELEASES }}"
+          readarray -t COMMITS_ARRAY <<< "${{ steps.check_commits.outputs.COMMITS_STATUS }}"
+          
+          for i in "${!RELEASES_ARRAY[@]}"; do
+              RELEASE_LINE="${RELEASES_ARRAY[$i]}"
+              COMMIT_LINE="${COMMITS_ARRAY[$i]}"
+              
+              if [[ "$COMMIT_LINE" == *":heavy_check_mark:"* ]]; then
+                  COMMITS_FOUND_REPOS+="${RELEASE_LINE} - :heavy_check_mark: Release should happen! 🚀\n"
+              elif [[ "$COMMIT_LINE" == *":x:"* ]]; then
+                  NO_COMMITS_REPOS+="${RELEASE_LINE} - :x: No new commits found since last release.\n"
+              elif [[ "$COMMIT_LINE" == *":new:"* ]]; then
+                  NO_COMMITS_REPOS+="${RELEASE_LINE} - :new: No releases found - any new commit will trigger a release.\n"
+              fi
+          done
+          
+          # Output grouped results
+          if [ -n "$COMMITS_FOUND_REPOS" ]; then
               cat >> slack_message.txt << 'MESSAGE_END'
+          :heavy_check_mark: *The following repos have new commits:*
+          MESSAGE_END
+              echo -e "$COMMITS_FOUND_REPOS" >> slack_message.txt
+              echo "" >> slack_message.txt
+          fi
+          
+          if [ -n "$NO_COMMITS_REPOS" ]; then
+              cat >> slack_message.txt << 'MESSAGE_END'
+          :x: *The following repos have no new commits:*
+          MESSAGE_END
+              echo -e "$NO_COMMITS_REPOS" >> slack_message.txt
+              echo "" >> slack_message.txt
+          fi
+          
+          # Pre-release section
+          if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
+              cat >> slack_message.txt << 'MESSAGE_END'
+          ---
           :package: *Pre-releases Ready for Promotion*
           :dart: The following pre-releases are newer than their latest releases and will be promoted:
 
           ${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}
 
           MESSAGE_END
-            else
-              cat >> slack_message.txt << 'MESSAGE_END'
-          :package: *Pre-release Status*
-          :information_source: No new pre-releases ready for promotion today.
-
-          MESSAGE_END
-            fi
           fi
           
           # Add separator and Automatic Release Status
           cat >> slack_message.txt << 'MESSAGE_END'
-          ────────────────────────────────────
-
+          ---
           :traffic_light: *Automatic Release Status*
           ${{ steps.check_status.outputs.STATUS_MESSAGE }}
           
