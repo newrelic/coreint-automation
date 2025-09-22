@@ -2,7 +2,6 @@ name: Daily Release Status Notification
 
 on:
   schedule:
-    # Run daily at 00:00 UTC
     - cron: '0 0 * * *'
   pull_request:
     branches: [ main ]
@@ -52,7 +51,6 @@ jobs:
         id: get_day
         run: |
           if [ "${{ github.event.inputs.specific_day }}" == "today" ] || [ -z "${{ github.event.inputs.specific_day }}" ]; then
-            # Get current day of week (1=Monday, 2=Tuesday, etc.)
             DAY_NUM=$(date +%u)
           else
             DAY_NUM="${{ github.event.inputs.specific_day }}"
@@ -60,7 +58,6 @@ jobs:
           
           echo "DAY_NUMBER=$DAY_NUM" >> $GITHUB_OUTPUT
           
-          # Map day number to day name
           case $DAY_NUM in
             1) DAY_NAME="Monday" ;;
             2) DAY_NAME="Tuesday" ;;
@@ -77,7 +74,6 @@ jobs:
         run: |
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
-          # Define all integrations with their schedules (UTC and IST)
           declare -A MONDAY_RELEASES=(
             ["nri-consul"]="02:00 UTC (07:30 IST)|Package"
             ["nri-mysql"]="05:30 UTC (11:00 IST)|Package"
@@ -118,7 +114,6 @@ jobs:
             ["nri-jmx"]="19:00 UTC (00:30 IST next day)|Package"
           )
           
-          # Build release list for Slack formatting with proper spacing
           RELEASE_LIST=""
           
           case $DAY_NUM in
@@ -162,7 +157,6 @@ jobs:
               ;;
           esac
           
-          # Save to output
           if [[ "$RELEASE_LIST" == "No scheduled releases"* ]]; then
             echo "RELEASES=$RELEASE_LIST" >> $GITHUB_OUTPUT
             echo "HAS_RELEASES=false" >> $GITHUB_OUTPUT
@@ -173,56 +167,15 @@ jobs:
             echo "HAS_RELEASES=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check for pre-releases in scheduled repos
-        id: check_prereleases
+      - name: Check for new commits since latest release
+        id: check_commits
         if: steps.get_releases.outputs.HAS_RELEASES == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          PRERELEASE_INFO=""
+          COMMITS_INFO=""
           DAY_NUM="${{ steps.get_day.outputs.DAY_NUMBER }}"
           
-          # Function to compare semantic versions
-          # Returns 0 if version1 > version2, 1 otherwise
-          compare_versions() {
-            local v1="${1#v}"  # Remove 'v' prefix if present
-            local v2="${2#v}"
-            
-            # Handle empty/null versions
-            [ -z "$v2" ] && return 0
-            [ -z "$v1" ] && return 1
-            
-            # Split versions into components
-            IFS='.' read -r -a ver1 <<< "$v1"
-            IFS='.' read -r -a ver2 <<< "$v2"
-            
-            # Compare major.minor.patch
-            for i in 0 1 2; do
-              local num1="${ver1[$i]:-0}"
-              local num2="${ver2[$i]:-0}"
-              
-              # Remove any non-numeric suffix (like -rc1, -beta)
-              num1="${num1%%-*}"
-              num2="${num2%%-*}"
-              
-              if [ "$num1" -gt "$num2" ]; then
-                return 0
-              elif [ "$num1" -lt "$num2" ]; then
-                return 1
-              fi
-            done
-            
-            # If base versions are equal, pre-release < release
-            if [[ "$v1" == *"-"* ]] && [[ "$v2" != *"-"* ]]; then
-              return 1
-            elif [[ "$v1" != *"-"* ]] && [[ "$v2" == *"-"* ]]; then
-              return 0
-            fi
-            
-            return 1  # versions are equal or v1 <= v2
-          }
-          
-          # Get list of repos for today
           case $DAY_NUM in
             1) REPOS="nri-consul nri-mysql nri-memcached nri-redis nri-varnish nri-discovery nri-apache nri-postgresql" ;;
             2) REPOS="nri-haproxy nri-nagios nri-elasticsearch nri-mongodb nri-mssql nri-oracledb nri-docker" ;;
@@ -231,60 +184,51 @@ jobs:
             *) REPOS="" ;;
           esac
           
-          # Check for pre-releases in each repo
           for repo in $REPOS; do
-            echo "Checking releases for newrelic/${repo}..."
+            echo "Checking commits for newrelic/${repo}..."
             
-            # Using GitHub API to check for releases
-            RESPONSE=$(curl -s \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            # Get latest commit on main or master
+            LATEST_COMMIT_SHA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/newrelic/${repo}/commits/main" | jq -r .sha)
+            if [ "$LATEST_COMMIT_SHA" == "null" ]; then
+              LATEST_COMMIT_SHA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/newrelic/${repo}/commits/master" | jq -r .sha)
+            fi
+
+            # Get commit associated with the latest release (including pre-releases)
+            LATEST_RELEASE_SHA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/newrelic/${repo}/releases")
+              "https://api.github.com/repos/newrelic/${repo}/releases" | jq -r '.[0].target_commitish')
             
-            # Check if we got a valid response
-            if echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
-              # Get latest release (non-prerelease)
-              LATEST_RELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==false) | .tag_name' | head -1)
-              
-              # Get latest pre-release
-              LATEST_PRERELEASE=$(echo "$RESPONSE" | jq -r '.[] | select(.prerelease==true) | .tag_name' | head -1)
-              
-              if [ -n "$LATEST_PRERELEASE" ] && [ "$LATEST_PRERELEASE" != "null" ]; then
-                echo "  Found pre-release: ${LATEST_PRERELEASE}"
-                echo "  Latest release: ${LATEST_RELEASE:-none}"
-                
-                # Only include pre-release if it's newer than the latest release
-                if compare_versions "$LATEST_PRERELEASE" "$LATEST_RELEASE"; then
-                  PRERELEASE_INFO="${PRERELEASE_INFO}• *${repo}* - Pre-release: \`${LATEST_PRERELEASE}\` | Latest: \`${LATEST_RELEASE:-N/A}\` :arrow_up:\n"
-                  echo "  Pre-release ${LATEST_PRERELEASE} is newer than release ${LATEST_RELEASE}"
-                else
-                  echo "  Pre-release ${LATEST_PRERELEASE} is not newer than release ${LATEST_RELEASE}, skipping"
-                fi
-              else
-                echo "  No pre-release found"
-              fi
+            if [ -z "$LATEST_COMMIT_SHA" ] || [ "$LATEST_COMMIT_SHA" == "null" ]; then
+                echo "  Failed to get latest commit for ${repo}. Skipping."
+                continue
+            fi
+            
+            if [ -z "$LATEST_RELEASE_SHA" ] || [ "$LATEST_RELEASE_SHA" == "null" ]; then
+                COMMITS_INFO="${COMMITS_INFO}• *${repo}* - :new: No releases found - any new commit will trigger a release\n"
+            elif [ "$LATEST_COMMIT_SHA" != "$LATEST_RELEASE_SHA" ]; then
+                COMMITS_INFO="${COMMITS_INFO}• *${repo}* - :heavy_check_mark: New commits found since latest release\n"
             else
-              echo "  Unable to fetch releases (repo might not exist or access denied)"
+                COMMITS_INFO="${COMMITS_INFO}• *${repo}* - :x: No new commits found since latest release\n"
             fi
           done
-          
-          if [ -z "$PRERELEASE_INFO" ]; then
-            echo "PRERELEASE_STATUS=No new pre-releases ready for promotion" >> $GITHUB_OUTPUT
-            echo "HAS_PRERELEASES=false" >> $GITHUB_OUTPUT
-          else
-            echo "PRERELEASE_STATUS<<EOF" >> $GITHUB_OUTPUT
-            echo -e "$PRERELEASE_INFO" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            echo "HAS_PRERELEASES=true" >> $GITHUB_OUTPUT
-          fi
 
+          if [ -z "$COMMITS_INFO" ]; then
+            echo "COMMITS_STATUS=No scheduled repositories found" >> $GITHUB_OUTPUT
+            echo "HAS_COMMITS=false" >> $GITHUB_OUTPUT
+          else
+            echo "COMMITS_STATUS<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$COMMITS_INFO" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "HAS_COMMITS=true" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Format Slack message
         id: format_message
         run: |
-          # Create a properly formatted Slack message with proper Slack markup
           CURRENT_TIME=$(date -u '+%H:%M')
           
-          # Start building the message
           cat > slack_message.txt << MESSAGE_END
           :calendar: *Daily Release Status Report*
           :clock1: ${{ steps.get_day.outputs.DAY_NAME }} | Generated at ${CURRENT_TIME} UTC
@@ -296,7 +240,6 @@ jobs:
 
           MESSAGE_END
           
-          # Add scheduled releases section
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
             cat >> slack_message.txt << 'MESSAGE_END'
           :rocket: *Today's Scheduled Releases*
@@ -305,31 +248,21 @@ jobs:
 
           MESSAGE_END
             
-            # Add pre-release section if there are any
-            if [ "${{ steps.check_prereleases.outputs.HAS_PRERELEASES }}" == "true" ]; then
-              cat >> slack_message.txt << 'MESSAGE_END'
-          :package: *Pre-releases Ready for Promotion*
-          :dart: The following pre-releases are newer than their latest releases and will be promoted:
+            cat >> slack_message.txt << 'MESSAGE_END'
+          :git: *Commit Status*
+          :information_source: The following indicates if there have been new commits since the last release:
 
-          ${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}
+          ${{ steps.check_commits.outputs.COMMITS_STATUS }}
 
           MESSAGE_END
-            else
-              cat >> slack_message.txt << 'MESSAGE_END'
-          :package: *Pre-release Status*
-          :information_source: No new pre-releases ready for promotion today.
-
-          MESSAGE_END
-            fi
-            
-            # Add summary stats
+          
             REPO_COUNT=$(echo "${{ steps.get_releases.outputs.RELEASES }}" | grep -c "^•" || echo "0")
-            PRERELEASE_COUNT=$(echo "${{ steps.check_prereleases.outputs.PRERELEASE_STATUS }}" | grep -c ":arrow_up:" || echo "0")
+            COMMITS_COUNT=$(echo "${{ steps.check_commits.outputs.COMMITS_STATUS }}" | grep -c ":heavy_check_mark:" || echo "0")
             
             {
               echo ":bar_chart: *Summary*"
               echo "• :calendar: *Total scheduled releases:* $REPO_COUNT"
-              echo "• :new: *Pre-releases to promote:* $PRERELEASE_COUNT"
+              echo "• :git: *Repos with new commits:* $COMMITS_COUNT"
               
               if [ "${{ steps.check_status.outputs.RELEASES_ENABLED }}" == "true" ]; then
                 echo "• :white_check_mark: *Status:* Ready to release! :tada:"
@@ -346,7 +279,6 @@ jobs:
           MESSAGE_END
           fi
           
-          # Save to GitHub output (no footer with workflow link)
           {
             echo "SLACK_MESSAGE<<EOF"
             cat slack_message.txt
@@ -372,6 +304,9 @@ jobs:
           if [ "${{ steps.get_releases.outputs.HAS_RELEASES }}" == "true" ]; then
             echo "### Scheduled Releases:" >> $GITHUB_STEP_SUMMARY
             echo "${{ steps.get_releases.outputs.RELEASES }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Commit Status:" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.check_commits.outputs.COMMITS_STATUS }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "### No releases scheduled for today" >> $GITHUB_STEP_SUMMARY
           fi
