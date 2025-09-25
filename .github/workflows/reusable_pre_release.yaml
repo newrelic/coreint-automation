@@ -135,7 +135,7 @@ jobs:
     if: ${{ always() && !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Pre release
         env:
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
@@ -167,7 +167,7 @@ jobs:
         goarch: ${{ fromJSON(inputs.windows_goarch_matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Get PFX certificate from GH secrets
         shell: bash
         env:
@@ -270,7 +270,7 @@ jobs:
           packageLocation: repo
           stagingRepo: true
           upgrade: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Update pre-release title
         env:
           GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
@@ -295,7 +295,7 @@ jobs:
     needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages, publish]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Reflect failure in release title
         env:
           GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
