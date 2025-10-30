@@ -1,4 +1,4 @@
-ARG UBUNTU_VERSION=16.04
+ARG UBUNTU_VERSION=24.04
 
 # Use Ubuntu as the base image
 FROM ubuntu:${UBUNTU_VERSION}
