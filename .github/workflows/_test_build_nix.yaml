@@ -10,6 +10,6 @@ jobs:
     env:
       TAG: "v0.0.0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build all platforms:arch
         run: make ci/build
