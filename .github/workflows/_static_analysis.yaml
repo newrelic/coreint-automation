@@ -8,10 +8,10 @@ jobs:
     name: Run all static analysis checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # Checkout to coreint-automation repo for using .golangci.yml in golangci-lint-action 
       - name: Checkout coreint-automation repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: newrelic/coreint-automation
           ref: v3
