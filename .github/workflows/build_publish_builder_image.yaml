@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: [1.24.10, 1.25.6]
+        go-version: [1.24.12, 1.25.6]
         ubuntu-version: [16.04]
 
     steps:
