@@ -28,7 +28,7 @@ jobs:
     name: Test binary compilation for all platforms:arch
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           git tag "$TAG"
           if [ -z "$GPG_PASSPHRASE" ]; then
@@ -51,7 +51,7 @@ jobs:
         goarch: ${{ fromJSON(inputs.goarch_matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - shell: bash
         run: git tag "$TAG"
       - name: Download artifact from previous job
