@@ -59,3 +59,40 @@ jobs:
         if: ${{ github.event.schedule }}  # Upload sarif when running periodically
         with:
           sarif_file: 'trivy-results.sarif'
+
+  grype:
+    name: Grype security scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # Required for SARIF upload to GitHub Security tab
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Grype vulnerability scanner in repo mode
+        uses: anchore/scan-action@v7
+        if: ${{ ! github.event.schedule }}  # Do not run inline checks when running periodically
+        id: grype-inline
+        with:
+          path: "."
+          fail-build: true
+          severity-cutoff: critical
+          only-fixed: true
+          cache-db: true
+
+      - name: Run Grype vulnerability scanner sarif output
+        uses: anchore/scan-action@v7
+        if: ${{ github.event.schedule }}  # Generate sarif when running periodically
+        id: grype-sarif
+        with:
+          path: "."
+          output-format: sarif
+          output-file: grype-results.sarif
+          only-fixed: true
+          cache-db: true
+
+      - name: Upload Grype scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ github.event.schedule }}  # Upload sarif when running periodically
+        with:
+          sarif_file: 'grype-results.sarif'
