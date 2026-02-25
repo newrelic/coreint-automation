@@ -16,6 +16,10 @@ on:
         type: string
         default: ''
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   trivy:
     name: Trivy security scan
@@ -63,8 +67,6 @@ jobs:
   grype:
     name: Grype security scan
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write  # Required for SARIF upload to GitHub Security tab
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
