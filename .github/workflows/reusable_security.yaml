@@ -84,6 +84,7 @@ jobs:
           cache-db: true
           output-format: table
 
+
       - name: Run Grype vulnerability scanner sarif output
         uses: anchore/scan-action@v7
         if: ${{ github.event.schedule }}  # Generate sarif when running periodically
