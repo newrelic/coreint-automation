@@ -15,6 +15,20 @@ on:
         required: false
         type: string
         default: ''
+      binary-path:
+        description: |
+          Path to a pre-built binary (or directory of binaries) to scan with Grype.
+          When set, Grype scans the binary instead of the source directory, ensuring
+          only dependencies actually shipped to customers are reported (test-only
+          dependencies are excluded because they are not linked into the binary).
+          The calling workflow is responsible for building the binary before invoking
+          this workflow.
+          When not set, Grype falls back to scanning the source directory (dir:.),
+          which includes all go.mod dependencies regardless of whether they are
+          test-only.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -72,12 +86,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate Grype exclusion config
+        if: ${{ inputs.skip-dirs != '' || inputs.skip-files != '' }}
+        env:
+          SKIP_DIRS: ${{ inputs.skip-dirs }}
+          SKIP_FILES: ${{ inputs.skip-files }}
+        run: |
+          {
+            echo "exclude:"
+            IFS=',' read -ra DIRS <<< "$SKIP_DIRS"
+            for dir in "${DIRS[@]}"; do
+              dir="${dir// /}"
+              [ -n "$dir" ] && echo "  - '**/$dir/**'"
+            done
+            IFS=',' read -ra FILES <<< "$SKIP_FILES"
+            for file in "${FILES[@]}"; do
+              file="${file// /}"
+              [ -n "$file" ] && echo "  - '**/$file'"
+            done
+          } > .grype.yaml
+
       - name: Run Grype vulnerability scanner in repo mode
         uses: anchore/scan-action@v7
         if: ${{ ! github.event.schedule }}  # Do not run inline checks when running periodically
         id: grype-inline
         with:
-          path: "."
+          path: "${{ inputs.binary-path || '.' }}"
+          grype-config: ${{ (inputs.skip-dirs != '' || inputs.skip-files != '') && '.grype.yaml' || '' }}
           fail-build: true
           severity-cutoff: high
           only-fixed: true
@@ -90,7 +125,8 @@ jobs:
         if: ${{ github.event.schedule }}  # Generate sarif when running periodically
         id: grype-sarif
         with:
-          path: "."
+          path: "${{ inputs.binary-path || '.' }}"
+          grype-config: ${{ (inputs.skip-dirs != '' || inputs.skip-files != '') && '.grype.yaml' || '' }}
           output-format: sarif
           output-file: grype-results.sarif
           only-fixed: true
