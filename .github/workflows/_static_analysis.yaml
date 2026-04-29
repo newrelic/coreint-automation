@@ -17,7 +17,7 @@ jobs:
           ref: v3
           path: './coreint-automation'
       - uses: newrelic/newrelic-infra-checkers@v1
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
       - name: golangci-lint
