@@ -1,14 +1,10 @@
-name: NewRelic Control release 
+name: Publish agent to catalog
 
 on:
   workflow_call:
     inputs:
       tag:
         description: Release tag to process (e.g., v1.15.1)
-        type: string
-        required: true
-      integration:
-        description: Integration name to be released (without the 'nri-' prefix)
         type: string
         required: true
       agent_type:
