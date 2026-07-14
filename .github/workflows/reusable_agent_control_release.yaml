@@ -202,11 +202,12 @@ jobs:
       - name: Resolve metadata git ref
         id: metadata-ref
         run: |
+          set -euo pipefail
           REF="${{ inputs.metadata_git_ref }}"
           echo "ref=${REF:-${{ steps.validate.outputs.tag }}}" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Agent Metadata
-        uses: newrelic/agent-metadata-action@main
+        uses: newrelic/agent-metadata-action@v1.2.0
         with:
           newrelic-client-id: ${{ secrets.NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.NEWRELIC_PRIVATE_KEY }}
