@@ -1,0 +1,223 @@
+name: Publish agent to catalog
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to process (e.g., v1.15.1)
+        type: string
+        required: true
+      agent_type:
+        description: Registered agent-type for this integration (e.g. NRIRedis). See #help-agent-control if it isn't registered yet.
+        type: string
+        required: true
+      display_name:
+        description: Human-readable display name shown in the Agent Catalog UI
+        type: string
+        required: false
+        default: ""
+      monitoring_type:
+        description: Fleet the agent belongs to.
+        type: string
+        required: false
+        default: "INFRA"
+      oci_registry:
+        description: OCI registry URL for binary uploads (e.g. docker.io/newrelic/agents).
+        type: string
+        required: true
+      source_repo:
+        description: Repo (owner/repo) to download release assets from. Defaults to the calling repository (used for testing); 
+        type: string
+        required: false
+        default: ""
+      metadata_git_ref:
+        description: Git ref (used for testing) 
+        type: string
+        required: false
+        default: ""
+      artifacts:
+        description: >
+          JSON array describing which release assets to download, filter, and re-upload to OCI. Each entry:
+          name, os, arch, format (tar+gzip|zip, final OCI artifact format), source_asset (release asset
+          filename, supports a {version} placeholder), source_format (tar.gz|zip, format of source_asset),
+          keep_files (list of file paths inside source_asset to retain; everything else is dropped).
+        type: string
+        required: true
+
+    secrets: # uppercase secrets to match the already defined organization secrets
+      NEWRELIC_CLIENT_ID:
+        required: true
+      NEWRELIC_PRIVATE_KEY:
+        required: true
+      OCI_USERNAME:
+        required: true
+      OCI_PASSWORD:
+        required: true
+      APM_CONTROL_NR_LICENSE_KEY_STAGING:
+        required: false
+
+jobs:
+  repackage:
+    name: Repackage release assets and upload to Agent Metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate release tag and extract version
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          SOURCE_REPO="${{ inputs.source_repo }}"
+          REPO="${SOURCE_REPO:-${{ github.repository }}}"
+
+          echo "Validating release tag: ${TAG}"
+          if ! gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+            echo "::error::Release tag '${TAG}' not found in ${REPO}"
+            exit 1
+          fi
+
+          # Extract version (remove 'v' prefix if present, remove any suffix after '-')
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "repo=${REPO}"
+          } >> "$GITHUB_OUTPUT"
+          echo "✓ Release validated: ${TAG} (version: ${VERSION}, repo: ${REPO})"
+
+      - name: Install extraction tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq unzip jq >/dev/null 2>&1
+          which unzip tar jq
+
+      - name: Download, filter and repackage artifacts
+        id: package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.validate.outputs.tag }}
+          VERSION: ${{ steps.validate.outputs.version }}
+          REPO: ${{ steps.validate.outputs.repo }}
+          ARTIFACTS_JSON: ${{ inputs.artifacts }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p downloads extracted dist /tmp/artifacts
+          echo '[]' > /tmp/artifacts/binaries.json
+
+          mapfile -t ARTIFACT_LINES < <(echo "${ARTIFACTS_JSON}" | jq -c '.[]')
+
+          if [ "${#ARTIFACT_LINES[@]}" -eq 0 ]; then
+            echo "::error::No artifacts defined in 'artifacts' input"
+            exit 1
+          fi
+
+          for ARTIFACT in "${ARTIFACT_LINES[@]}"; do
+            NAME=$(echo "${ARTIFACT}" | jq -r '.name')
+            OS=$(echo "${ARTIFACT}" | jq -r '.os')
+            ARCH=$(echo "${ARTIFACT}" | jq -r '.arch')
+            FORMAT=$(echo "${ARTIFACT}" | jq -r '.format')
+            SOURCE_FORMAT=$(echo "${ARTIFACT}" | jq -r '.source_format')
+            SOURCE_ASSET_TEMPLATE=$(echo "${ARTIFACT}" | jq -r '.source_asset')
+            SOURCE_ASSET="${SOURCE_ASSET_TEMPLATE//\{version\}/${VERSION}}"
+
+            echo "=== Processing artifact '${NAME}' (${OS}/${ARCH}) ==="
+            echo "  source asset: ${SOURCE_ASSET}"
+
+            DL_DIR="downloads/${NAME}"
+            EXT_DIR="extracted/${NAME}"
+            KEEP_DIR="dist/${NAME}"
+            mkdir -p "${DL_DIR}" "${EXT_DIR}" "${KEEP_DIR}"
+
+            gh release download "${TAG}" \
+              --repo "${REPO}" \
+              --pattern "${SOURCE_ASSET}" \
+              --dir "${DL_DIR}" \
+              --clobber
+
+            if [ ! -f "${DL_DIR}/${SOURCE_ASSET}" ]; then
+              echo "::error::Expected download not found: ${DL_DIR}/${SOURCE_ASSET}"
+              exit 1
+            fi
+
+            case "${SOURCE_FORMAT}" in
+              tar.gz)
+                tar xf "${DL_DIR}/${SOURCE_ASSET}" -C "${EXT_DIR}"
+                ;;
+              zip)
+                unzip -q -o "${DL_DIR}/${SOURCE_ASSET}" -d "${EXT_DIR}"
+                ;;
+              *)
+                echo "::error::Unsupported source_format '${SOURCE_FORMAT}' for artifact '${NAME}'"
+                exit 1
+                ;;
+            esac
+
+            mapfile -t KEEP_FILES < <(echo "${ARTIFACT}" | jq -r '.keep_files[]')
+            for KEEP_FILE in "${KEEP_FILES[@]}"; do
+              if [ ! -f "${EXT_DIR}/${KEEP_FILE}" ]; then
+                echo "::error::keep_files entry '${KEEP_FILE}' not found after extracting ${SOURCE_ASSET}"
+                exit 1
+              fi
+              cp "${EXT_DIR}/${KEEP_FILE}" "${KEEP_DIR}/"
+            done
+
+            case "${FORMAT}" in
+              tar+gzip)
+                FINAL="/tmp/artifacts/${NAME}.tar.gz"
+                tar czf "${FINAL}" -C "${KEEP_DIR}" .
+                ;;
+              zip)
+                FINAL="/tmp/artifacts/${NAME}.zip"
+                (cd "${KEEP_DIR}" && zip -q -r "${FINAL}" .)
+                ;;
+              *)
+                echo "::error::Unsupported format '${FORMAT}' for artifact '${NAME}'"
+                exit 1
+                ;;
+            esac
+
+            echo "  -> ${FINAL}"
+
+            jq --arg name "${NAME}" --arg path "${FINAL}" --arg os "${OS}" --arg arch "${ARCH}" --arg format "${FORMAT}" \
+              '. += [{"name": $name, "path": $path, "os": $os, "arch": $arch, "format": $format}]' \
+              /tmp/artifacts/binaries.json > /tmp/artifacts/binaries.json.tmp
+            mv /tmp/artifacts/binaries.json.tmp /tmp/artifacts/binaries.json
+          done
+
+          echo "✓ All artifacts repackaged:"
+          cat /tmp/artifacts/binaries.json
+
+          {
+            echo "binaries_json<<EOF"
+            cat /tmp/artifacts/binaries.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve metadata git ref
+        id: metadata-ref
+        run: |
+          set -euo pipefail
+          REF="${{ inputs.metadata_git_ref }}"
+          echo "ref=${REF:-${{ steps.validate.outputs.tag }}}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Agent Metadata
+        uses: newrelic/agent-metadata-action@v1.2.0
+        with:
+          newrelic-client-id: ${{ secrets.NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.NEWRELIC_PRIVATE_KEY }}
+          agent-type: ${{ inputs.agent_type }}
+          display-name: ${{ inputs.display_name }}
+          monitoring-type: ${{ inputs.monitoring_type }}
+          version: ${{ steps.validate.outputs.version }}
+          git-ref: ${{ steps.metadata-ref.outputs.ref }}
+          oci-registry: ${{ inputs.oci_registry }}
+          oci-username: ${{ secrets.OCI_USERNAME }}
+          oci-password: ${{ secrets.OCI_PASSWORD }}
+          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY_STAGING }}
+          binaries: ${{ steps.package.outputs.binaries_json }}
