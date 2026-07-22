@@ -45,15 +45,15 @@ on:
         required: true
 
     secrets: # uppercase secrets to match the already defined organization secrets
-      NEWRELIC_CLIENT_ID:
+      OHAI_NEWRELIC_CLIENT_ID:
         required: true
-      NEWRELIC_PRIVATE_KEY:
+      OHAI_NEWRELIC_PRIVATE_KEY:
         required: true
-      OCI_USERNAME:
+      OHAI_OCI_USERNAME:
         required: true
-      OCI_PASSWORD:
+      OHAI_OCI_PASSWORD:
         required: true
-      APM_CONTROL_NR_LICENSE_KEY_STAGING:
+      OHAI_APM_CONTROL_NR_LICENSE_KEY_STAGING:
         required: false
 
 jobs:
@@ -209,15 +209,15 @@ jobs:
       - name: Upload to Agent Metadata
         uses: newrelic/agent-metadata-action@v1.2.0
         with:
-          newrelic-client-id: ${{ secrets.NEWRELIC_CLIENT_ID }}
-          newrelic-private-key: ${{ secrets.NEWRELIC_PRIVATE_KEY }}
+          newrelic-client-id: ${{ secrets.OHAI_NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.OHAI_NEWRELIC_PRIVATE_KEY }}
           agent-type: ${{ inputs.agent_type }}
           display-name: ${{ inputs.display_name }}
           monitoring-type: ${{ inputs.monitoring_type }}
           version: ${{ steps.validate.outputs.version }}
           git-ref: ${{ steps.metadata-ref.outputs.ref }}
           oci-registry: ${{ inputs.oci_registry }}
-          oci-username: ${{ secrets.OCI_USERNAME }}
-          oci-password: ${{ secrets.OCI_PASSWORD }}
-          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY_STAGING }}
+          oci-username: ${{ secrets.OHAI_OCI_USERNAME }}
+          oci-password: ${{ secrets.OHAI_OCI_PASSWORD }}
+          apm-control-nr-license-key: ${{ secrets.OHAI_APM_CONTROL_NR_LICENSE_KEY_STAGING }}
           binaries: ${{ steps.package.outputs.binaries_json }}
