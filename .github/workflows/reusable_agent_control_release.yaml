@@ -207,7 +207,7 @@ jobs:
           echo "ref=${REF:-${{ steps.validate.outputs.tag }}}" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Agent Metadata
-        uses: newrelic/agent-metadata-action@v1.2.0
+        uses: newrelic/agent-metadata-action@v1.3.0
         with:
           newrelic-client-id: ${{ secrets.OHAI_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.OHAI_NEWRELIC_PRIVATE_KEY }}
