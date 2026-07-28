@@ -43,6 +43,13 @@ on:
           keep_files (list of file paths inside source_asset to retain; everything else is dropped).
         type: string
         required: true
+      tags:
+        description: >
+          JSON object of arbitrary key/value tags to store on the agent definition entity
+          (e.g. {"on-host-integration": "true"}). Each value must be a string.
+        type: string
+        required: false
+        default: '{"on-host-integration": "true"}'
 
     secrets: # uppercase secrets to match the already defined organization secrets
       OHAI_NEWRELIC_CLIENT_ID:
@@ -207,7 +214,7 @@ jobs:
           echo "ref=${REF:-${{ steps.validate.outputs.tag }}}" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Agent Metadata
-        uses: newrelic/agent-metadata-action@v1.2.0
+        uses: newrelic/agent-metadata-action@v1.3.0
         with:
           newrelic-client-id: ${{ secrets.OHAI_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.OHAI_NEWRELIC_PRIVATE_KEY }}
@@ -221,3 +228,4 @@ jobs:
           oci-password: ${{ secrets.OHAI_OCI_PASSWORD }}
           apm-control-nr-license-key: ${{ secrets.OHAI_APM_CONTROL_NR_LICENSE_KEY_STAGING }}
           binaries: ${{ steps.package.outputs.binaries_json }}
+          tags: ${{ inputs.tags }}
