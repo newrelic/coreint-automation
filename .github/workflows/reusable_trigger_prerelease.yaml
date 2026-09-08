@@ -90,7 +90,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
           token: "${{ secrets.bot_token }}"
-      - uses: newrelic/release-toolkit/contrib/ohi-release-notes@v1
+      - uses: ./actions/ohi-release-notes
         id: release-data
         with:
           excluded-dirs: "${{ inputs.rt-excluded-dirs }}"
