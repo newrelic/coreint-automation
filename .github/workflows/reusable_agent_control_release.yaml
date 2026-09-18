@@ -226,6 +226,6 @@ jobs:
           oci-registry: ${{ inputs.oci_registry }}
           oci-username: ${{ secrets.OHAI_OCI_USERNAME }}
           oci-password: ${{ secrets.OHAI_OCI_PASSWORD }}
-          newrelic-license-key: ${{ secrets.OHAI_APM_CONTROL_NR_LICENSE_KEY_STAGING }}
+          newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
           binaries: ${{ steps.package.outputs.binaries_json }}
           tags: ${{ inputs.tags }}
