@@ -60,7 +60,7 @@ on:
         required: true
       OHAI_OCI_PASSWORD:
         required: true
-      OHAI_APM_CONTROL_NR_LICENSE_KEY_STAGING:
+      AGENT_METADATA_ACTION_LICENSE_KEY:
         required: false
 
 jobs:
