@@ -7,6 +7,14 @@ on:
         description: Release tag to process (e.g., v1.15.1)
         type: string
         required: true
+      tag_prefix:
+        description: >
+          Prefix of the release tag that precedes the version, for repositories that release several integrations
+          (e.g. `nri-mongodb3-` for tags like `nri-mongodb3-3.1.8`). It is removed from the tag to get the version.
+          The tag must start with it. Leave empty when the tag is just the version (e.g. `v1.15.1`).
+        type: string
+        required: false
+        default: ""
       agent_type:
         description: Registered agent-type for this integration (e.g. NRIRedis). See #help-agent-control if it isn't registered yet.
         type: string
@@ -73,11 +81,13 @@ jobs:
         id: validate
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          DEFAULT_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          TAG="${{ inputs.tag }}"
-          SOURCE_REPO="${{ inputs.source_repo }}"
-          REPO="${SOURCE_REPO:-${{ github.repository }}}"
+          REPO="${SOURCE_REPO:-${DEFAULT_REPO}}"
 
           echo "Validating release tag: ${TAG}"
           if ! gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
@@ -85,8 +95,17 @@ jobs:
             exit 1
           fi
 
-          # Extract version (remove 'v' prefix if present, remove any suffix after '-')
-          VERSION="${TAG#v}"
+          # Extract version (remove the tag prefix if configured, remove 'v' prefix if present,
+          # remove any suffix after '-')
+          VERSION="${TAG}"
+          if [ -n "${TAG_PREFIX}" ]; then
+            if [[ "${TAG}" != "${TAG_PREFIX}"* ]]; then
+              echo "::error::Release tag '${TAG}' does not start with the tag prefix '${TAG_PREFIX}'"
+              exit 1
+            fi
+            VERSION="${TAG#"${TAG_PREFIX}"}"
+          fi
+          VERSION="${VERSION#v}"
           VERSION="${VERSION%%-*}"
 
           {
