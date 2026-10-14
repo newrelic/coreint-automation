@@ -65,11 +65,11 @@
     {
         // Group the Dockerfile go bump ("golang" package) and the go.mod go bump ("go" package) together
         // check <https://docs.renovatebot.com/configuration-options/#groupname> for details about grouping.
-        // Group golang & go packages minor, major versions with groupName "golang version"
-        // Disabled automerge for golang & go packages minor, major version updates
+        // Group golang & go packages major versions with groupName "golang major version"
+        // Disabled automerge for golang & go packages major version updates (still needs manual review).
         "matchPackageNames": ["golang", "go"],
-        "matchUpdateTypes": ["minor", "major"],
-        "groupName": "golang version",
+        "matchUpdateTypes": ["major"],
+        "groupName": "golang major version",
         "automerge": false,
         "pruneBranchAfterAutomerge": true
     },
@@ -91,7 +91,21 @@
       "automerge": true,
       "pruneBranchAfterAutomerge": true,
       "platformAutomerge": true
+    },
+    {
+      // Group the Dockerfile go bump ("golang" package) and the go.mod go bump ("go" package) together
+      // check <https://docs.renovatebot.com/configuration-options/#groupname> for details about grouping.
+      // Group golang & go packages minor versions with groupName "golang minor version"
+      // Enabled automerge for golang & go packages minor version updates: safe to land automatically
+      // once PR checks pass, consistent with how minor updates are already handled for every other dep.
+      "description": "Automerge go minor version updates",
+      "matchPackageNames": ["golang", "go"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "golang minor version",
+      "automerge": true,
+      "pruneBranchAfterAutomerge": true,
+      "platformAutomerge": true
     }
-    
+
   ]
 }
