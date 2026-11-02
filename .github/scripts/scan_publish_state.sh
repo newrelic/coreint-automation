@@ -5,8 +5,8 @@
 #   prerelease.done     open pre-release already in the staging bucket
 #   release.pending     latest release, not in the prod bucket
 #   release.done        latest release already in the prod bucket
-# "In the bucket" = the linux/amd64 tarball <app>_linux_<version>_amd64.tar.gz exists under
-# <prefix>binaries/linux/amd64/ (every publish schema uploads it).
+# "In the bucket" = the linux tarball <app>_linux_<version>_<arch>.tar.gz exists under
+# <prefix>binaries/linux/<arch>/ (every publish schema uploads it; arch is amd64, noarch for nrjmx).
 # Staging is read with the aws CLI (needs credentials). Prod falls back to the public
 # download.newrelic.com when there are no credentials. If a bucket cannot be read the entry
 # is kept as pending with s3_check="unknown". Nothing is written to S3 here.
@@ -54,14 +54,15 @@ s3_check() { # stage bucket key
 }
 
 add() { # stage src entry
-  local stage="$1" src="$2" entry="$3" tag item app version s3bucket check bucket
+  local stage="$1" src="$2" entry="$3" tag item app version arch s3bucket check bucket
   tag=$(jq -r '.tag_name' <<<"$src")
   item=$(jq -n --argjson cfg "$(jq -c '.defaults' "$CONFIG")" --argjson e "$entry" --argjson src "$src" \
         --arg org "$ORG" --arg tag "$tag" '
     ($cfg + $e) as $c
     | {
         repo_name: "\($org)/\($c.repo)",
-        app_name: "nri-\($c.integration)",
+        app_name: ($c.app_name // "nri-\($c.integration)"),
+        app_name_fips: (($c.app_name // "nri-\($c.integration)") + "-fips"),
         integration: $c.integration,
         tag: $tag,
         release_url: $src.html_url,
@@ -76,8 +77,9 @@ add() { # stage src entry
       }')
   app=$(jq -r '.app_name' <<<"$item")
   version="${tag#v}"
+  arch=$(jq -r '.marker_arch // "amd64"' <<<"$entry")
   s3bucket=$STAGING_BUCKET; [ "$stage" = release ] && s3bucket=$PROD_BUCKET
-  check=$(s3_check "$stage" "$s3bucket" "${S3_PREFIX}binaries/linux/amd64/${app}_linux_${version}_amd64.tar.gz")
+  check=$(s3_check "$stage" "$s3bucket" "${S3_PREFIX}binaries/linux/${arch}/${app}_linux_${version}_${arch}.tar.gz")
   bucket=pending; [ "$check" = found ] && bucket=done
   item=$(jq -c --arg c "$check" '. + {s3_check: $c}' <<<"$item")
   echo "$(jq -r '.repo_name' <<<"$item")@${tag}: ${stage} ${bucket} (s3: ${check})"
