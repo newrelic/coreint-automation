@@ -109,7 +109,7 @@ jobs:
     needs: [staging, production]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.1.3
         with:
           pattern: scan-*
           merge-multiple: true
