@@ -1,0 +1,129 @@
+name: Batch scan
+
+# Builds the batch queue: for every opted-in repo, compares the version on GitHub with what is
+# in S3 and marks it pending or done.
+#   staging job:    open pre-release  vs  nr-downloads-ohai-staging  (staging AWS account)
+#   production job: latest release    vs  nr-downloads-main          (production AWS account)
+#   queue job:      merges both halves into queue.json and, with upload_to_s3, uploads it
+# An entry is "done" when its linux/amd64 tarball is already in the bucket, otherwise "pending".
+# The checks only read S3. See .github/scripts/scan_publish_state.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_s3:
+        description: Upload queue.json to S3 (the checks always read the buckets)
+        type: boolean
+        required: false
+        default: false
+      queue_bucket:
+        description: S3 bucket the queue is uploaded to
+        type: string
+        required: false
+        default: nr-downloads-ohai-batch-staging
+      queue_prefix:
+        description: Key prefix inside the queue bucket
+        type: string
+        required: false
+        default: batch-queue
+
+# Run one scan at a time.
+concurrency:
+  group: batch-scan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    name: Read staging, mark pre-releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+      - name: Compare GitHub pre-releases with staging
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGING_BUCKET: nr-downloads-ohai-staging
+        run: .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json prerelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-staging
+          path: staging.json
+
+  production:
+    name: Read production, mark releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (production)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+      - name: Compare GitHub releases with production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROD_BUCKET: nr-downloads-main
+        run: .github/scripts/scan_publish_state.sh .github/batch/repos.json production.json release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-production
+          path: production.json
+
+  queue:
+    name: Build queue.json
+    needs: [staging, production]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: scan-*
+          merge-multiple: true
+
+      - name: Merge
+        run: |
+          jq -s --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{generated_at: $at, prerelease: .[0].prerelease, release: .[1].release}' \
+            staging.json production.json > queue.json
+
+      - name: Summary
+        run: |
+          {
+            echo "### Batch queue"
+            echo
+            echo "| Stage | State | Repo | Tag | S3 check |"
+            echo "|---|---|---|---|---|"
+            jq -r '(.prerelease | to_entries[] | .key as $st | .value[] | "| prerelease | \($st) | \(.repo_name) | \(.tag) | \(.s3_check) |"),
+                   (.release    | to_entries[] | .key as $st | .value[] | "| release | \($st) | \(.repo_name) | \(.tag) | \(.s3_check) |")' queue.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-queue
+          path: queue.json
+
+      - name: Configure AWS credentials (staging)
+        if: ${{ inputs.upload_to_s3 }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+
+      - name: Upload queue.json to S3
+        if: ${{ inputs.upload_to_s3 }}
+        run: aws s3 cp queue.json "s3://${{ inputs.queue_bucket }}/${{ inputs.queue_prefix }}/queue.json"

@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# Scans the opted-in repos for a pre-release newer than the latest release and
-# writes one queue entry (JSON) per repo into <out_dir>.
+# Scans the opted-in repos and writes one local JSON file split in two lists:
+#   pending: a pre-release newer than the latest release exists (still to be published to prod)
+#   done:    the latest release has no newer pre-release (nothing waiting)
+# Nothing is written to S3.
 #
-# usage: scan_prereleases.sh <repos.json> <out_dir>
+# usage: scan_prereleases.sh <repos.json> <queue.json>
 # env:   GITHUB_TOKEN (optional locally, avoids rate limits), GITHUB_ORG (default: newrelic)
 set -euo pipefail
 
-CONFIG="${1:?usage: $0 <repos.json> <out_dir>}"
-OUT_DIR="${2:?usage: $0 <repos.json> <out_dir>}"
+CONFIG="${1:?usage: $0 <repos.json> <queue.json>}"
+OUT_FILE="${2:?usage: $0 <repos.json> <queue.json>}"
 ORG="${GITHUB_ORG:-newrelic}"
-mkdir -p "$OUT_DIR"
 
 auth=()
 [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 
-queued=0
+pending='[]'
+done_list='[]'
 while IFS= read -r entry; do
   repo=$(jq -r '.repo' <<<"$entry")
 
@@ -24,18 +26,22 @@ while IFS= read -r entry; do
     continue
   }
 
-  # Releases come back newest first. Only a pre-release created after the latest
-  # full release is waiting for promotion.
-  pre=$(jq -c '[.[] | select(.draft==false)] | (map(select(.prerelease==false))[0].created_at // "") as $rel
-    | map(select(.prerelease==true and .created_at > $rel))[0] // empty' <<<"$releases")
+  # Newest full release, and a pre-release created after it (if any).
+  rel=$(jq -c '[.[] | select(.draft==false and .prerelease==false)][0] // empty' <<<"$releases")
+  pre=$(jq -c --arg rel "$(jq -r '.created_at // ""' <<<"${rel:-null}")" \
+    '[.[] | select(.draft==false and .prerelease==true and .created_at > $rel)][0] // empty' <<<"$releases")
 
-  if [ -z "$pre" ]; then
-    echo "${repo}: no pending pre-release"
+  if [ -n "$pre" ]; then
+    state=pending; src=$pre
+  elif [ -n "$rel" ]; then
+    state=done; src=$rel
+  else
+    echo "${repo}: no releases"
     continue
   fi
 
-  tag=$(jq -r '.tag_name' <<<"$pre")
-  jq -n --argjson cfg "$(jq -c '.defaults' "$CONFIG")" --argjson e "$entry" --argjson pre "$pre" \
+  tag=$(jq -r '.tag_name' <<<"$src")
+  item=$(jq -n --argjson cfg "$(jq -c '.defaults' "$CONFIG")" --argjson e "$entry" --argjson src "$src" \
         --arg org "$ORG" --arg tag "$tag" '
     ($cfg + $e) as $c
     | {
@@ -43,8 +49,8 @@ while IFS= read -r entry; do
         app_name: "nri-\($c.integration)",
         integration: $c.integration,
         tag: $tag,
-        release_url: $pre.html_url,
-        assets: [$pre.assets[].name],
+        release_url: $src.html_url,
+        assets: [$src.assets[].name],
         test_package: $c.test_package,
         publish_schema: $c.publish_schema,
         publish_schema_url: ($c.publish_schema_url | gsub("\\{tag\\}"; $tag)),
@@ -52,9 +58,15 @@ while IFS= read -r entry; do
         publish_schema_fips: $c.publish_schema_fips,
         publish_schema_url_fips: ($c.publish_schema_url_fips | gsub("\\{tag\\}"; $tag)),
         config_verified: ($c.verified // false)
-      }' > "${OUT_DIR}/${repo}-${tag}.json"
-  echo "${repo}: queued ${tag}"
-  queued=$((queued + 1))
+      }')
+  echo "${repo}: ${state} ${tag}"
+  if [ "$state" = pending ]; then
+    pending=$(jq -c --argjson i "$item" '. + [$i]' <<<"$pending")
+  else
+    done_list=$(jq -c --argjson i "$item" '. + [$i]' <<<"$done_list")
+  fi
 done < <(jq -c '.repos[]' "$CONFIG")
 
-echo "queued ${queued} entr$([ "$queued" -eq 1 ] && echo y || echo ies) in ${OUT_DIR}"
+mkdir -p "$(dirname "$OUT_FILE")"
+jq -n --argjson p "$pending" --argjson d "$done_list" '{pending: $p, done: $d}' > "$OUT_FILE"
+echo "wrote ${OUT_FILE}: $(jq '.pending|length' "$OUT_FILE") pending, $(jq '.done|length' "$OUT_FILE") done"
