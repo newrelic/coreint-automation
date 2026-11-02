@@ -2,8 +2,8 @@ name: Batch scan
 
 # Builds the batch queue: for every opted-in repo, compares the version on GitHub with what is
 # in S3 and marks it pending or done.
-#   staging job:    open pre-release  vs  nr-downloads-ohai-staging  (staging AWS account)
-#   production job: latest release    vs  nr-downloads-main          (production AWS account)
+#   staging job:    open pre-release  vs  staging_bucket     (staging AWS account)
+#   production job: latest release    vs  production_bucket  (production AWS account)
 #   queue job:      merges both halves into queue.json and, with upload_to_s3, uploads it
 # An entry is "done" when its linux/amd64 tarball is already in the bucket, otherwise "pending".
 # The checks only read S3. See .github/scripts/scan_publish_state.sh.
@@ -11,6 +11,26 @@ name: Batch scan
 on:
   workflow_dispatch:
     inputs:
+      staging_bucket:
+        description: Bucket the open pre-releases are compared with
+        type: string
+        required: false
+        default: nr-downloads-ohai-staging
+      production_bucket:
+        description: Bucket the latest releases are compared with
+        type: string
+        required: false
+        default: nr-downloads-main
+      s3_prefix:
+        description: Key prefix the packages are published under in both buckets
+        type: string
+        required: false
+        default: infrastructure_agent/
+      aws_region:
+        description: AWS region of the buckets
+        type: string
+        required: false
+        default: us-east-1
       upload_to_s3:
         description: Upload queue.json to S3 (the checks always read the buckets)
         type: boolean
@@ -44,7 +64,7 @@ jobs:
       - name: Configure AWS credentials (staging)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: us-east-1
+          aws-region: ${{ inputs.aws_region }}
           aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
@@ -52,7 +72,8 @@ jobs:
       - name: Compare GitHub pre-releases with staging
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STAGING_BUCKET: nr-downloads-ohai-staging
+          STAGING_BUCKET: ${{ inputs.staging_bucket }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
         run: .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json prerelease
       - uses: actions/upload-artifact@v4
         with:
@@ -67,7 +88,7 @@ jobs:
       - name: Configure AWS credentials (production)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: us-east-1
+          aws-region: ${{ inputs.aws_region }}
           aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
@@ -75,7 +96,8 @@ jobs:
       - name: Compare GitHub releases with production
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROD_BUCKET: nr-downloads-main
+          PROD_BUCKET: ${{ inputs.production_bucket }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
         run: .github/scripts/scan_publish_state.sh .github/batch/repos.json production.json release
       - uses: actions/upload-artifact@v4
         with:
@@ -118,7 +140,7 @@ jobs:
         if: ${{ inputs.upload_to_s3 }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: us-east-1
+          aws-region: ${{ inputs.aws_region }}
           aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
