@@ -1,0 +1,47 @@
+{
+  "_comment": "Opted-in integrations for batch publish. Defaults mirror reusable_on_release.yaml. '{tag}' in schema URLs is replaced with the release tag. verified=false means the settings were not checked against the repo's own release workflow yet.",
+  "defaults": {
+    "test_package": true,
+    "publish_schema": "ohi",
+    "publish_schema_url": "",
+    "upload_fips_packages": false,
+    "publish_schema_fips": "ohi-fips",
+    "publish_schema_url_fips": ""
+  },
+  "repos": [
+    { "repo": "nri-consul", "integration": "consul", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-elasticsearch", "integration": "elasticsearch", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-haproxy", "integration": "haproxy", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-nginx", "integration": "nginx", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-rabbitmq", "integration": "rabbitmq", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-redis", "integration": "redis", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-varnish", "integration": "varnish", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-vsphere", "integration": "vsphere", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-jmx", "integration": "jmx", "publish_schema": "ohi-jmx", "upload_fips_packages": true, "verified": true },
+    { "repo": "nri-kafka", "integration": "kafka", "publish_schema": "ohi-jmx", "upload_fips_packages": true, "verified": true },
+    {
+      "repo": "nri-docker", "integration": "docker", "test_package": false,
+      "publish_schema": "custom",
+      "publish_schema_url": "https://raw.githubusercontent.com/newrelic/nri-docker/{tag}/build/s3-publish-schema.yml",
+      "verified": true
+    },
+    {
+      "repo": "nri-oracledb", "integration": "oracledb", "test_package": false, "upload_fips_packages": true,
+      "publish_schema": "custom",
+      "publish_schema_url": "https://raw.githubusercontent.com/newrelic/nri-oracledb/{tag}/build/s3-publish-schema.yml",
+      "publish_schema_fips": "custom",
+      "publish_schema_url_fips": "https://raw.githubusercontent.com/newrelic/nri-oracledb/{tag}/build/s3-publish-schema.yml",
+      "verified": true
+    },
+    { "repo": "nri-apache", "integration": "apache", "upload_fips_packages": true, "verified": false },
+    { "repo": "nri-cassandra", "integration": "cassandra", "publish_schema": "ohi-jmx", "upload_fips_packages": true, "verified": false },
+    { "repo": "nri-mysql", "integration": "mysql", "verified": false },
+    { "repo": "nri-memcached", "integration": "memcached", "verified": false },
+    { "repo": "nri-postgresql", "integration": "postgresql", "verified": false },
+    { "repo": "nri-nagios", "integration": "nagios", "verified": false },
+    { "repo": "nri-mongodb", "integration": "mongodb", "verified": false },
+    { "repo": "nri-mssql", "integration": "mssql", "verified": false },
+    { "repo": "nri-couchbase", "integration": "couchbase", "verified": false },
+    { "repo": "nri-f5", "integration": "f5", "verified": false }
+  ]
+}
