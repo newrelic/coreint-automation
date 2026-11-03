@@ -26,11 +26,6 @@ on:
         type: boolean
         required: false
         default: true
-      publish_action_ref:
-        description: Ref of newrelic/infrastructure-publish-action that has the batch action
-        type: string
-        required: false
-        default: batch-publish
       s3_prefix:
         description: Key prefix the packages are published under
         type: string
@@ -134,10 +129,10 @@ jobs:
             manifest.full.json
             queue.json
 
-  publish:
-    name: Publish (${{ inputs.stage }})
+  publish-staging:
+    name: Publish (staging)
     needs: prepare
-    if: ${{ !inputs.dry_run && needs.prepare.outputs.count != '0' }}
+    if: ${{ !inputs.dry_run && inputs.stage == 'staging' && needs.prepare.outputs.count != '0' }}
     runs-on: ubuntu-latest-4-cores
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -146,21 +141,79 @@ jobs:
         with:
           name: batch-manifest
 
-      - name: Publish all apps to S3
+      - name: Publish all apps to S3 (staging)
         uses: newrelic/infrastructure-publish-action/batch@batch-publish
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
           apps_manifest_path: manifest.json
           batch_result_path: batch-result.json
-          access_point_host: ${{ inputs.stage == 'staging' && 'staging' || 'production' }}
+          access_point_host: "staging"
           aws_region: ${{ inputs.aws_region }}
-          aws_role_arn: ${{ inputs.stage == 'staging' && secrets.OHAI_AWS_ROLE_ARN_STAGING || secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
-          aws_role_session_name: ${{ inputs.stage == 'staging' && secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING || secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
-          aws_access_key_id: ${{ inputs.stage == 'staging' && secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING || secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
-          aws_secret_access_key: ${{ inputs.stage == 'staging' && secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING || secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
-          aws_s3_bucket_name: ${{ env.BUCKET }}
-          aws_s3_lock_bucket_name: ${{ env.LOCK_BUCKET }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: nr-downloads-ohai-staging
+          aws_s3_lock_bucket_name: onhost-ci-lock-staging
+          dest_prefix: ${{ inputs.s3_prefix }}
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+
+      - name: Read result
+        id: result
+        if: ${{ always() }}
+        run: |
+          [ -f batch-result.json ] || { echo "status=failed" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "status=$(jq -r .status batch-result.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Batch result: $(jq -r .status batch-result.json)"
+            echo
+            jq -r '"Published: \(.published | length), skipped: \(.skipped | length)"' batch-result.json
+            echo
+            jq -r '.skipped[]? | "- skipped `\(.app_name)`: \(.reason)"' batch-result.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Tests only run for the apps that were really published (not -fips, not test_package: false).
+          jq -c --slurpfile r batch-result.json '
+            [ .[] | select(.test_package == true)
+              | select(.app_name as $a | $r[0].published | map(.app_name) | index($a)) ]
+            | map({app_name, integration, tag, repo_name})' manifest.full.json > to-test.json
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: batch-result
+          path: |
+            batch-result.json
+            to-test.json
+
+  publish-production:
+    name: Publish (production)
+    needs: prepare
+    if: ${{ !inputs.dry_run && inputs.stage == 'production' && needs.prepare.outputs.count != '0' }}
+    runs-on: ubuntu-latest-4-cores
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+    steps:
+      - uses: actions/download-artifact@v4.1.3
+        with:
+          name: batch-manifest
+
+      - name: Publish all apps to S3 (production)
+        uses: newrelic/infrastructure-publish-action/batch@batch-publish
+        with:
+          disable_lock: false
+          run_id: ${{ github.run_id }}
+          apps_manifest_path: manifest.json
+          batch_result_path: batch-result.json
+          access_point_host: "production"
+          aws_region: ${{ inputs.aws_region }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: nr-downloads-main
+          aws_s3_lock_bucket_name: onhost-ci-lock
           dest_prefix: ${{ inputs.s3_prefix }}
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
@@ -194,8 +247,8 @@ jobs:
 
   test-matrix:
     name: Prepare test matrix
-    needs: publish
-    if: ${{ !inputs.dry_run && needs.publish.outputs.status == 'published' }}
+    needs: [publish-staging, publish-production]
+    if: ${{ !inputs.dry_run && (needs.publish-staging.outputs.status == 'published' || needs.publish-production.outputs.status == 'published') }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
@@ -225,8 +278,8 @@ jobs:
 
   notify:
     name: Notify
-    needs: [publish, test]
-    if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
+    needs: [publish-staging, publish-production, test]
+    if: ${{ always() && !inputs.dry_run && (needs.publish-staging.result != 'skipped' || needs.publish-production.result != 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4.1.3
