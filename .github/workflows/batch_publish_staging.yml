@@ -1,21 +1,16 @@
-name: Batch publish
+name: Batch publish to staging
 
-# Publishes every pending integration of one stage to S3 in a single run.
-#   prepare: scans GitHub vs the stage's bucket and builds manifest.json from the pending entries
+# Publishes every pending open pre-release to S3 (nr-downloads-ohai-staging) in a single run.
+#   prepare: scans GitHub vs nr-downloads-ohai-staging and builds manifest.json from the pending entries
 #   publish: runs the batch publish action once (one lock, each apt/yum repo built once)
 #   test:    installs each published package from the repo (one matrix job per integration)
 #   notify:  one Slack message with the published and skipped apps
 # Apps whose assets or schema are missing are skipped and reported, the rest still publish.
-# Run it with dry_run to only see the manifest.
+# Run it with dry_run to only see the manifest. Uses only the STAGING secrets.
 
 on:
   workflow_dispatch:
     inputs:
-      stage:
-        description: Which pending list to publish
-        type: choice
-        options: [staging, production]
-        required: true
       only:
         description: Optional comma separated repo names (e.g. nri-redis,nri-nginx) to publish instead of all pending
         type: string
@@ -37,24 +32,21 @@ on:
         required: false
         default: us-east-1
 
-# One batch at a time per stage: the publish takes the S3 repo lock anyway.
+# One batch at a time: the publish takes the S3 repo lock anyway.
 concurrency:
-  group: batch-publish-${{ inputs.stage }}
+  group: batch-publish-staging
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
-  STAGE: ${{ inputs.stage }}
-  # staging publishes the open pre-releases, production the latest releases
-  SCAN_STAGE: ${{ inputs.stage == 'staging' && 'prerelease' || 'release' }}
-  BUCKET: ${{ inputs.stage == 'staging' && 'nr-downloads-ohai-staging' || 'nr-downloads-main' }}
-  LOCK_BUCKET: ${{ inputs.stage == 'staging' && 'onhost-ci-lock-staging' || 'onhost-ci-lock' }}
+  SCAN_STAGE: prerelease
+  BUCKET: nr-downloads-ohai-staging
 
 jobs:
   prepare:
-    name: Build manifest (${{ inputs.stage }})
+    name: Build manifest (staging)
     runs-on: ubuntu-latest
     outputs:
       count: ${{ steps.manifest.outputs.count }}
@@ -62,7 +54,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (staging)
-        if: ${{ inputs.stage == 'staging' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ inputs.aws_region }}
@@ -70,16 +61,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
-
-      - name: Configure AWS credentials (production)
-        if: ${{ inputs.stage == 'production' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ inputs.aws_region }}
-          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
-          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
-          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
-          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
 
       - name: Scan GitHub vs ${{ env.BUCKET }}
         env:
@@ -113,7 +94,7 @@ jobs:
           count=$(jq length manifest.json)
           echo "count=$count" >> "$GITHUB_OUTPUT"
           {
-            echo "### Batch manifest ($STAGE, $count apps)"
+            echo "### Batch manifest (staging, $count apps)"
             echo
             echo "| App | Repo | Tag | Schema |"
             echo "|---|---|---|---|"
@@ -129,10 +110,10 @@ jobs:
             manifest.full.json
             queue.json
 
-  publish-staging:
+  publish:
     name: Publish (staging)
     needs: prepare
-    if: ${{ !inputs.dry_run && inputs.stage == 'staging' && needs.prepare.outputs.count != '0' }}
+    if: ${{ !inputs.dry_run && needs.prepare.outputs.count != '0' }}
     runs-on: ubuntu-latest-4-cores
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -187,68 +168,10 @@ jobs:
             batch-result.json
             to-test.json
 
-  publish-production:
-    name: Publish (production)
-    needs: prepare
-    if: ${{ !inputs.dry_run && inputs.stage == 'production' && needs.prepare.outputs.count != '0' }}
-    runs-on: ubuntu-latest-4-cores
-    outputs:
-      status: ${{ steps.result.outputs.status }}
-    steps:
-      - uses: actions/download-artifact@v4.1.3
-        with:
-          name: batch-manifest
-
-      - name: Publish all apps to S3 (production)
-        uses: newrelic/infrastructure-publish-action/batch@batch-publish
-        with:
-          disable_lock: false
-          run_id: ${{ github.run_id }}
-          apps_manifest_path: manifest.json
-          batch_result_path: batch-result.json
-          access_point_host: "production"
-          aws_region: ${{ inputs.aws_region }}
-          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
-          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
-          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
-          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
-          aws_s3_bucket_name: nr-downloads-main
-          aws_s3_lock_bucket_name: onhost-ci-lock
-          dest_prefix: ${{ inputs.s3_prefix }}
-          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
-
-      - name: Read result
-        id: result
-        if: ${{ always() }}
-        run: |
-          [ -f batch-result.json ] || { echo "status=failed" >> "$GITHUB_OUTPUT"; exit 0; }
-          echo "status=$(jq -r .status batch-result.json)" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Batch result: $(jq -r .status batch-result.json)"
-            echo
-            jq -r '"Published: \(.published | length), skipped: \(.skipped | length)"' batch-result.json
-            echo
-            jq -r '.skipped[]? | "- skipped `\(.app_name)`: \(.reason)"' batch-result.json
-          } >> "$GITHUB_STEP_SUMMARY"
-          # Tests only run for the apps that were really published (not -fips, not test_package: false).
-          jq -c --slurpfile r batch-result.json '
-            [ .[] | select(.test_package == true)
-              | select(.app_name as $a | $r[0].published | map(.app_name) | index($a)) ]
-            | map({app_name, integration, tag, repo_name})' manifest.full.json > to-test.json
-
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: batch-result
-          path: |
-            batch-result.json
-            to-test.json
-
   test-matrix:
     name: Prepare test matrix
-    needs: [publish-staging, publish-production]
-    if: ${{ !inputs.dry_run && (needs.publish-staging.outputs.status == 'published' || needs.publish-production.outputs.status == 'published') }}
+    needs: publish
+    if: ${{ !inputs.dry_run && needs.publish.outputs.status == 'published' }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
@@ -268,7 +191,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.test-matrix.outputs.matrix) }}
     steps:
-      - name: Test package from ${{ inputs.stage }} repo
+      - name: Test package from staging repo
         uses: newrelic/integrations-pkg-test-action/linux@v1
         with:
           tag: ${{ matrix.tag }}
@@ -278,8 +201,8 @@ jobs:
 
   notify:
     name: Notify
-    needs: [publish-staging, publish-production, test]
-    if: ${{ always() && !inputs.dry_run && (needs.publish-staging.result != 'skipped' || needs.publish-production.result != 'skipped') }}
+    needs: [publish, test]
+    if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4.1.3
@@ -291,11 +214,11 @@ jobs:
         id: msg
         run: |
           if [ -f batch-result.json ]; then
-            text="*Batch publish to ${STAGE}* ($(jq -r .status batch-result.json)): $(jq '.published|length' batch-result.json) published, $(jq '.skipped|length' batch-result.json) skipped, tests: ${{ needs.test.result }}"
+            text="*Batch publish to staging* ($(jq -r .status batch-result.json)): $(jq '.published|length' batch-result.json) published, $(jq '.skipped|length' batch-result.json) skipped, tests: ${{ needs.test.result }}"
             skipped=$(jq -r '.skipped[]? | "\n• `\(.app_name)`: \(.reason)"' batch-result.json)
             text="$text$skipped"
           else
-            text="*Batch publish to ${STAGE}* failed before writing a result"
+            text="*Batch publish to staging* failed before writing a result"
           fi
           text="$text\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "text<<EOF" >> "$GITHUB_OUTPUT"
