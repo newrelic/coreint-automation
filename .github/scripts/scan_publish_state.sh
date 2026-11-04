@@ -17,7 +17,7 @@
 #        GITHUB_ORG          default: newrelic
 #        STAGING_BUCKET      default: nr-downloads-ohai-staging
 #        PROD_BUCKET         default: nr-downloads-main
-#        S3_PREFIX           default: infrastructure_agent/
+#        S3_PREFIX           default: infrastructure_agent_v2/
 #        PROD_PUBLIC_URL     default: https://download.newrelic.com
 set -euo pipefail
 
@@ -27,7 +27,7 @@ STAGE="${3:-all}"
 ORG="${GITHUB_ORG:-newrelic}"
 STAGING_BUCKET="${STAGING_BUCKET:-nr-downloads-ohai-staging}"
 PROD_BUCKET="${PROD_BUCKET:-nr-downloads-main}"
-S3_PREFIX="${S3_PREFIX:-infrastructure_agent/}"
+S3_PREFIX="${S3_PREFIX:-infrastructure_agent_v2/}"
 PROD_PUBLIC_URL="${PROD_PUBLIC_URL:-https://download.newrelic.com}"
 
 have_aws=false
