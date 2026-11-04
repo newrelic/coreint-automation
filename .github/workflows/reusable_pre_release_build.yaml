@@ -146,7 +146,7 @@ jobs:
           binaries_path: "./dist"
       - name: Test package installability
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@feat/configurable-repo-prefix
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
