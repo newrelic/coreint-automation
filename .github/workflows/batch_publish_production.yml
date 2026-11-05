@@ -61,6 +61,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          role-skip-session-tagging: true
 
       - name: Scan GitHub vs ${{ env.BUCKET }}
         env:
