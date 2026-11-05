@@ -7,6 +7,8 @@
 #   release.done        latest release already in the prod bucket
 # "In the bucket" = the linux tarball <app>_linux_<version>_<arch>.tar.gz exists under
 # <prefix>binaries/linux/<arch>/ (every publish schema uploads it; arch is amd64, noarch for nrjmx).
+# For repos that upload fips packages the <app>-fips tarball must be there too, otherwise the entry
+# stays pending. s3_check is the combined result, s3_check_main / s3_check_fips are the two parts.
 # Staging is read with the aws CLI (needs credentials). Prod falls back to the public
 # download.newrelic.com when there are no credentials. If a bucket cannot be read the entry
 # is kept as pending with s3_check="unknown". Nothing is written to S3 here.
@@ -54,7 +56,7 @@ s3_check() { # stage bucket key
 }
 
 add() { # stage src entry
-  local stage="$1" src="$2" entry="$3" tag item app version arch s3bucket check bucket
+  local stage="$1" src="$2" entry="$3" tag item app app_fips version arch s3bucket check check_main check_fips bucket
   tag=$(jq -r '.tag_name' <<<"$src")
   item=$(jq -n --argjson cfg "$(jq -c '.defaults' "$CONFIG")" --argjson e "$entry" --argjson src "$src" \
         --arg org "$ORG" --arg tag "$tag" '
@@ -79,10 +81,20 @@ add() { # stage src entry
   version="${tag#v}"
   arch=$(jq -r '.marker_arch // "amd64"' <<<"$entry")
   s3bucket=$STAGING_BUCKET; [ "$stage" = release ] && s3bucket=$PROD_BUCKET
-  check=$(s3_check "$stage" "$s3bucket" "${S3_PREFIX}binaries/linux/${arch}/${app}_linux_${version}_${arch}.tar.gz")
+  check_main=$(s3_check "$stage" "$s3bucket" "${S3_PREFIX}binaries/linux/${arch}/${app}_linux_${version}_${arch}.tar.gz")
+  # Repos that upload fips packages are done only when the fips tarball is there too.
+  check_fips=n/a
+  if [ "$(jq -r '.upload_fips_packages' <<<"$item")" = true ]; then
+    app_fips=$(jq -r '.app_name_fips' <<<"$item")
+    check_fips=$(s3_check "$stage" "$s3bucket" "${S3_PREFIX}binaries/linux/${arch}/${app_fips}_linux_${version}_${arch}.tar.gz")
+  fi
+  # found only if everything is found, missing if any is missing, otherwise unknown
+  if [ "$check_main" = found ] && { [ "$check_fips" = found ] || [ "$check_fips" = n/a ]; }; then check=found
+  elif [ "$check_main" = missing ] || [ "$check_fips" = missing ]; then check=missing
+  else check=unknown; fi
   bucket=pending; [ "$check" = found ] && bucket=done
-  item=$(jq -c --arg c "$check" '. + {s3_check: $c}' <<<"$item")
-  echo "$(jq -r '.repo_name' <<<"$item")@${tag}: ${stage} ${bucket} (s3: ${check})"
+  item=$(jq -c --arg c "$check" --arg m "$check_main" --arg f "$check_fips" '. + {s3_check: $c, s3_check_main: $m, s3_check_fips: $f}' <<<"$item")
+  echo "$(jq -r '.repo_name' <<<"$item")@${tag}: ${stage} ${bucket} (s3: ${check}, main: ${check_main}, fips: ${check_fips})"
   result=$(jq -c --arg s "$stage" --arg b "$bucket" --argjson i "$item" '.[$s][$b] += [$i]' <<<"$result")
 }
 

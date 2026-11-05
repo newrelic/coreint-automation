@@ -1,0 +1,90 @@
+name: Batch scan (production)
+
+# Compares the latest releases of every opted-in repo with what is in nr-downloads-main and marks it pending or done.
+# An entry is "done" when its linux/amd64 tarball is already under the prefix, otherwise "pending".
+# The check only reads S3 (PRODUCTION credentials). See .github/scripts/scan_publish_state.sh.
+# The result is production.json, uploaded as the scan-production artifact; with upload_to_s3 it is also copied to S3.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket:
+        description: Bucket the latest releases are compared with
+        type: string
+        required: false
+        default: nr-downloads-main
+      s3_prefix:
+        description: Key prefix the packages are published under in the bucket
+        type: string
+        required: false
+        default: infrastructure_agent_v2/
+      aws_region:
+        description: AWS region of the bucket
+        type: string
+        required: false
+        default: us-east-1
+      upload_to_s3:
+        description: Upload production.json to S3 (the check always reads the bucket)
+        type: boolean
+        required: false
+        default: false
+      queue_bucket:
+        description: S3 bucket the result is uploaded to
+        type: string
+        required: false
+        default: nr-downloads-ohai-batch-staging
+      queue_prefix:
+        description: Key prefix inside the queue bucket
+        type: string
+        required: false
+        default: batch-queue
+
+# Run one scan at a time.
+concurrency:
+  group: batch-scan-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Read production, mark latest releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (production)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+
+      - name: Compare GitHub latest releases with ${{ inputs.bucket }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROD_BUCKET: ${{ inputs.bucket }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+        run: .github/scripts/scan_publish_state.sh .github/batch/repos.json production.json release
+
+      - name: Summary
+        run: |
+          {
+            echo "### Batch scan (production, ${{ inputs.bucket }}/${{ inputs.s3_prefix }})"
+            echo
+            echo "| State | Repo | Tag | S3 check |"
+            echo "|---|---|---|---|"
+            jq -r '.release | to_entries[] | .key as $st | .value[] | "| \($st) | \(.repo_name) | \(.tag) | \(.s3_check) |"' production.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-production
+          path: production.json
+
+      - name: Upload production.json to S3
+        if: ${{ inputs.upload_to_s3 }}
+        run: aws s3 cp production.json "s3://${{ inputs.queue_bucket }}/${{ inputs.queue_prefix }}/production.json"

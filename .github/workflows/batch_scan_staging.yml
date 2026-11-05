@@ -1,0 +1,90 @@
+name: Batch scan (staging)
+
+# Compares the open pre-releases of every opted-in repo with what is in nr-downloads-ohai-staging and marks it pending or done.
+# An entry is "done" when its linux/amd64 tarball is already under the prefix, otherwise "pending".
+# The check only reads S3 (STAGING credentials). See .github/scripts/scan_publish_state.sh.
+# The result is staging.json, uploaded as the scan-staging artifact; with upload_to_s3 it is also copied to S3.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket:
+        description: Bucket the open pre-releases are compared with
+        type: string
+        required: false
+        default: nr-downloads-ohai-staging
+      s3_prefix:
+        description: Key prefix the packages are published under in the bucket
+        type: string
+        required: false
+        default: testing-pre-releases/v2-batch-test3/infrastructure_agent_v2/
+      aws_region:
+        description: AWS region of the bucket
+        type: string
+        required: false
+        default: us-east-1
+      upload_to_s3:
+        description: Upload staging.json to S3 (the check always reads the bucket)
+        type: boolean
+        required: false
+        default: false
+      queue_bucket:
+        description: S3 bucket the result is uploaded to
+        type: string
+        required: false
+        default: nr-downloads-ohai-batch-staging
+      queue_prefix:
+        description: Key prefix inside the queue bucket
+        type: string
+        required: false
+        default: batch-queue
+
+# Run one scan at a time.
+concurrency:
+  group: batch-scan-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Read staging, mark open pre-releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+
+      - name: Compare GitHub open pre-releases with ${{ inputs.bucket }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGING_BUCKET: ${{ inputs.bucket }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+        run: .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json prerelease
+
+      - name: Summary
+        run: |
+          {
+            echo "### Batch scan (staging, ${{ inputs.bucket }}/${{ inputs.s3_prefix }})"
+            echo
+            echo "| State | Repo | Tag | S3 check |"
+            echo "|---|---|---|---|"
+            jq -r '.prerelease | to_entries[] | .key as $st | .value[] | "| \($st) | \(.repo_name) | \(.tag) | \(.s3_check) |"' staging.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-staging
+          path: staging.json
+
+      - name: Upload staging.json to S3
+        if: ${{ inputs.upload_to_s3 }}
+        run: aws s3 cp staging.json "s3://${{ inputs.queue_bucket }}/${{ inputs.queue_prefix }}/staging.json"
