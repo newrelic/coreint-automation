@@ -52,6 +52,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          role-skip-session-tagging: true
 
       - name: Compare GitHub open pre-releases with ${{ inputs.bucket }}
         env:
