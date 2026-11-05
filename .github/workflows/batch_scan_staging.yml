@@ -3,7 +3,7 @@ name: Batch scan (staging)
 # Compares the open pre-releases of every opted-in repo with what is in nr-downloads-ohai-staging and marks it pending or done.
 # An entry is "done" when its linux/amd64 tarball is already under the prefix, otherwise "pending".
 # The check only reads S3 (STAGING credentials). See .github/scripts/scan_publish_state.sh.
-# The result is staging.json, uploaded as the scan-staging artifact; with upload_to_s3 it is also copied to S3.
+# The result is staging.json, uploaded as the scan-staging artifact; with upload_to_s3 it is also copied to <bucket>/<s3_prefix> as staging-scan-<utc timestamp>.json and staging-scan-latest.json.
 
 on:
   workflow_dispatch:
@@ -27,17 +27,7 @@ on:
         description: Upload staging.json to S3 (the check always reads the bucket)
         type: boolean
         required: false
-        default: false
-      queue_bucket:
-        description: S3 bucket the result is uploaded to
-        type: string
-        required: false
-        default: nr-downloads-ohai-batch-staging
-      queue_prefix:
-        description: Key prefix inside the queue bucket
-        type: string
-        required: false
-        default: batch-queue
+        default: true
 
 # Run one scan at a time.
 concurrency:
@@ -87,4 +77,10 @@ jobs:
 
       - name: Upload staging.json to S3
         if: ${{ inputs.upload_to_s3 }}
-        run: aws s3 cp staging.json "s3://${{ inputs.queue_bucket }}/${{ inputs.queue_prefix }}/staging.json"
+        run: |
+          # A dated copy that is never overwritten, plus a stable name for the latest scan.
+          ts=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          dest="s3://${{ inputs.bucket }}/${{ inputs.s3_prefix }}"
+          aws s3 cp staging.json "${dest}staging-scan-${ts}.json"
+          aws s3 cp staging.json "${dest}staging-scan-latest.json"
+          echo "Uploaded ${dest}staging-scan-${ts}.json and staging-scan-latest.json" >> "$GITHUB_STEP_SUMMARY"

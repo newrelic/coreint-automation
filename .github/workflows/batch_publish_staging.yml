@@ -1,10 +1,14 @@
 name: Batch publish to staging
 
 # Publishes every pending open pre-release to S3 (nr-downloads-ohai-staging) in a single run.
-#   prepare: scans GitHub vs nr-downloads-ohai-staging and builds manifest.json from the pending entries
+#   prepare: reads the latest scan (staging-scan-latest.json, written by "Batch scan (staging)" with
+#            upload_to_s3) and builds manifest.json from its pending entries. It stops if the file is
+#            missing or older than max_age_hours. With rescan it scans GitHub itself instead.
 #   publish: runs the batch publish action once (one lock, each apt/yum repo built once)
 #   test:    installs each published package from the repo (one matrix job per integration)
 #   notify:  one Slack message with the published and skipped apps
+#   refresh-scan: scans again after the publish and uploads a dated staging-scan-<timestamp>.json plus
+#            staging-scan-latest.json, so the next run does not see the published apps as pending
 # Apps whose assets or schema are missing are skipped and reported, the rest still publish.
 # Run it with dry_run to only see the manifest. Uses only the STAGING secrets.
 
@@ -16,6 +20,16 @@ on:
         type: string
         required: false
         default: ""
+      rescan:
+        description: Scan GitHub now instead of reading staging-scan-latest.json from S3
+        type: boolean
+        required: false
+        default: false
+      max_age_hours:
+        description: Refuse to use staging-scan-latest.json when it is older than this many hours
+        type: string
+        required: false
+        default: "24"
       dry_run:
         description: Only build the manifest, do not publish
         type: boolean
@@ -63,12 +77,32 @@ jobs:
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
 
       - name: Scan GitHub vs ${{ env.BUCKET }}
+        if: ${{ inputs.rescan }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STAGING_BUCKET: ${{ env.BUCKET }}
-          PROD_BUCKET: ${{ env.BUCKET }}
           S3_PREFIX: ${{ inputs.s3_prefix }}
         run: .github/scripts/scan_publish_state.sh .github/batch/repos.json queue.json "$SCAN_STAGE"
+
+      - name: Read staging-scan-latest.json from S3
+        if: ${{ !inputs.rescan }}
+        env:
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours }}
+          KEY: ${{ inputs.s3_prefix }}staging-scan-latest.json
+        run: |
+          if ! modified=$(aws s3api head-object --bucket "$BUCKET" --key "$KEY" --query LastModified --output text 2>&1); then
+            echo "::error::s3://$BUCKET/$KEY is missing or not readable: $modified"
+            echo "::error::Run 'Batch scan (staging)' with upload_to_s3 first, or run this workflow with rescan on."
+            exit 1
+          fi
+          age_h=$(( ( $(date -u +%s) - $(date -u -d "$modified" +%s) ) / 3600 ))
+          if [ "$age_h" -ge "$MAX_AGE_HOURS" ]; then
+            echo "::error::s3://$BUCKET/$KEY was written $age_h h ago (limit $MAX_AGE_HOURS h). Run the staging scan again or use rescan."
+            exit 1
+          fi
+          aws s3 cp "s3://$BUCKET/$KEY" queue.json
+          jq -e '.prerelease.pending' queue.json > /dev/null
+          echo "Using s3://$BUCKET/$KEY (written $modified, $age_h h old)" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Build manifest from pending
         id: manifest
@@ -232,3 +266,33 @@ jobs:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
           slack-text: ${{ steps.msg.outputs.text }}
+
+  refresh-scan:
+    name: Refresh scan file
+    needs: publish
+    if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+
+      - name: Scan again and upload
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGING_BUCKET: ${{ env.BUCKET }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+        run: |
+          .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json "$SCAN_STAGE"
+          ts=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          dest="s3://$BUCKET/$S3_PREFIX"
+          aws s3 cp staging.json "${dest}staging-scan-${ts}.json"
+          aws s3 cp staging.json "${dest}staging-scan-latest.json"
+          echo "Refreshed ${dest}staging-scan-latest.json (pending: $(jq '.prerelease.pending | length' staging.json))" >> "$GITHUB_STEP_SUMMARY"
