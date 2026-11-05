@@ -1,0 +1,229 @@
+name: Pre-Release (build only)
+
+# Same as reusable_pre_release.yaml up to and including the upload of the artifacts
+# to the GitHub pre-release (Linux packages and Windows MSI). It does NOT publish to S3:
+# the batch publish flow takes it from there. reusable_pre_release.yaml is unchanged.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Git tag vX.X.X for the Release. E.g: 'v1.0.1'"
+        required: true
+        type: string
+      integration:
+        description: "Integration name (without the prefix 'nri-'). E.g: 'redis'"
+        required: true
+        type: string
+      test_package:
+        description: Defines if the package should be tested using the 'newrelic/integrations-pkg-test-action' action.
+        type: boolean
+        required: false
+        default: true
+      publish_schema:
+        description: Defines the schema for the publish_action.
+        type: string
+        required: false
+        default: "ohi"
+      publish_schema_url:
+        description: Defines the schema_url for the publish_action (it requires publish_schema='custom')
+        type: string
+        required: false
+        default: ""
+      upload_fips_packages:
+        description: Defines if the FIPS packages should be uploaded to S3
+        type: boolean
+        required: false
+        default: false
+      publish_schema_fips:
+        description: Defines the schema for the publish_action for FIPS packages.
+        type: string
+        required: false
+        default: "ohi-fips"
+      publish_schema_url_fips:
+        description: Defines the schema_url for the publish_action for FIPS packages (it requires publish_schema_fips='custom')
+        type: string
+        required: false
+        default: ""
+      run_integration_nix:
+        required: false
+        type: boolean
+        default: true
+      run_test_nix:
+        required: false
+        type: boolean
+        default: true
+      run_test_windows:
+        required: false
+        type: boolean
+        default: true
+      run_build-win-packages:
+        description: "Build Windows packages"
+        required: false
+        type: boolean
+        default: true
+      win_package_type:
+        description: "Package type (msi,exe). Integrations that wraps other binaries are packages in exe (nri-kafka)"
+        default: msi
+        required: false
+        type: string
+      windows_goarch_matrix:
+        description: "Defines a custom goarch-matrix for windows builds as nrjmx based integrations support amd64 only (it needs to be a JSON array)"
+        required: false
+        type: string
+        default: '["amd64", "386"]'
+      windows_download_nrjmx:
+        description: "When enabled, the windows build will download nrjmx"
+        required: false
+        type: boolean
+        default: false
+      dest_prefix:
+        description: "destination s3 path prefix for pushing the artifacts"
+        required: false
+        type: string
+        default: "infrastructure_agent/"
+      windows_version:
+        description: "The version of windows server on which build-win-packages runs. [Example]: windows-2022"
+        required: false
+        type: string
+        default: "windows-2022"
+
+    secrets:
+      OHAI_GPG_PASSPHRASE:
+        required: true
+      OHAI_GPG_PRIVATE_KEY_BASE64:
+        required: true
+      OHAI_PFX_CERTIFICATE_BASE64:
+        required: false
+      OHAI_PFX_PASSPHRASE:
+        required: false
+      COREINT_SLACK_TOKEN:
+        required: true
+      COREINT_SLACK_CHANNEL:
+        required: true
+      COREINT_BOT_TOKEN:
+        required: true
+
+env:
+  # Build scripts inputs are mixed between this env vars and config args.
+  REPO_FULL_NAME: ${{ github.event.repository.full_name }}
+  TAG: ${{ inputs.tag }}
+  INTEGRATION: ${{ inputs.integration }}
+
+jobs:
+  test-nix:
+    if: ${{ inputs.run_test_nix }}
+    uses: ./.github/workflows/_test_nix.yaml
+
+  test-windows:
+    if: ${{ inputs.run_test_windows }}
+    uses: ./.github/workflows/_test_windows.yaml
+
+  test-integration-nix:
+    if: ${{ inputs.run_integration_nix }}
+    uses: ./.github/workflows/_test_integration_nix.yaml
+
+  build-artifacts:
+    name: Build binary for *Nix/Win, create archives for *Nix/Win, create packages for *Nix, upload all artifacts into GH Release assets
+    needs: [test-nix, test-windows, test-integration-nix]
+    # Currently behavior of GHA skips the job if any 'needs' is skipped(Windows tests disabled),so the next condition is needed.
+    # Runs always that 'needs' finishes if they are not cancelled nor failed. 
+    if: ${{ always() && !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pre release
+        env:
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+          # The upload script expects this to authenticate.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make ci/prerelease
+      - uses: newrelic/coreint-automation/test-fips-action@v3
+        if: ${{ inputs.upload_fips_packages }}
+        with:
+          binaries_path: "./dist"
+      - name: Test package installability
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/linux@feat/configurable-repo-prefix
+        with:
+          tag: ${{ inputs.tag }}
+          integration: nri-${{ inputs.integration }}
+
+  build-win-packages:
+    name: Create MSI & Upload into GH Release assets
+    # related to https://github.com/actions/runner/issues/2205
+    # since a success() is added by default and skipped jobs make success to fail we need to introduce this workaround
+    if: ${{ always() && needs.build-artifacts.result == 'success' && inputs.run_build-win-packages }}
+    runs-on: ${{ inputs.windows_version }}
+    needs: [build-artifacts]
+    strategy:
+      matrix:
+        goarch: ${{ fromJSON(inputs.windows_goarch_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get PFX certificate from GH secrets
+        shell: bash
+        env:
+          PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+        run: printf "%s" "$PFX_CERTIFICATE_BASE64" | base64 -d - > wincert.pfx
+      - name: Download zip from GH Release assets and extract .exe
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ inputs.tag }} --pattern nri-${{ inputs.integration }}-${{ matrix.goarch }}.${TAG#v}.zip --output ./artifact.zip
+          7z x ./artifact.zip -o./dist/nri-${{ inputs.integration }}_windows_${{ matrix.goarch }}/
+      - name: Download nrjmx
+        if: ${{ inputs.windows_download_nrjmx }}
+        shell: bash
+        run: build/windows/download_nrjmx.sh
+      - name: Create MSI
+        shell: pwsh
+        env:
+          PFX_PASSPHRASE:  ${{ secrets.OHAI_PFX_PASSPHRASE }}
+        run: |
+          build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch "${{ matrix.goarch }}" -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "New Relic"
+      - name: Test win packages installation
+        if: ${{ inputs.test_package }}
+        uses: newrelic/integrations-pkg-test-action/windows@v1
+        with:
+          tag: ${{ inputs.tag }}
+          integration: nri-${{ inputs.integration }}
+          arch: ${{ matrix.goarch }}
+          pkgType: ${{ inputs.win_package_type }}
+          upgrade: true
+          pkgDirBase: build\package\windows
+      - name: Upload MSI to GH Release
+        shell: bash
+        env:
+          # The upload script expects this to authenticate.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          build/windows/upload_msi.sh "$INTEGRATION" "${{ matrix.goarch }}" "$TAG"
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `${{ github.event.repository.full_name }}`: [prerelease build pipeline failed](${{ github.server_url }}/${{ github.event.repository.full_name }}/actions/runs/${{ github.run_id }})."
+
+  update-title-on-failure:
+    if: ${{ always() && failure() }}
+    needs: [test-nix, test-windows, test-integration-nix, build-artifacts, build-win-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reflect failure in release title
+        env:
+          GH_TOKEN: "${{ secrets.COREINT_BOT_TOKEN }}"
+        run: |
+          gh release edit ${{ inputs.tag }} --title "${{ inputs.tag }} (pre-release-failure)"

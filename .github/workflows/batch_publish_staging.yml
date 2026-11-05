@@ -1,0 +1,298 @@
+name: Batch publish to staging
+
+# Publishes every pending open pre-release to S3 (nr-downloads-ohai-staging) in a single run.
+#   prepare: reads the latest scan (staging-scan-latest.json, written by "Batch scan (staging)" with
+#            upload_to_s3) and builds manifest.json from its pending entries. It stops if the file is
+#            missing or older than max_age_hours. With rescan it scans GitHub itself instead.
+#   publish: runs the batch publish action once (one lock, each apt/yum repo built once)
+#   test:    installs each published package from the repo (one matrix job per integration)
+#   notify:  one Slack message with the published and skipped apps
+#   refresh-scan: scans again after the publish and uploads a dated staging-scan-<timestamp>.json plus
+#            staging-scan-latest.json, so the next run does not see the published apps as pending
+# Apps whose assets or schema are missing are skipped and reported, the rest still publish.
+# Run it with dry_run to only see the manifest. Uses only the STAGING secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Optional comma separated repo names (e.g. nri-redis,nri-nginx) to publish instead of all pending
+        type: string
+        required: false
+        default: ""
+      rescan:
+        description: Scan GitHub now instead of reading staging-scan-latest.json from S3
+        type: boolean
+        required: false
+        default: false
+      max_age_hours:
+        description: Refuse to use staging-scan-latest.json when it is older than this many hours
+        type: string
+        required: false
+        default: "24"
+      dry_run:
+        description: Only build the manifest, do not publish
+        type: boolean
+        required: false
+        default: true
+      s3_prefix:
+        description: Key prefix the packages are published under
+        type: string
+        required: false
+        default: testing-pre-releases/v2-batch-test3/infrastructure_agent_v2/
+      aws_region:
+        description: AWS region of the buckets
+        type: string
+        required: false
+        default: us-east-1
+
+# One batch at a time: the publish takes the S3 repo lock anyway.
+concurrency:
+  group: batch-publish-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SCAN_STAGE: prerelease
+  BUCKET: nr-downloads-ohai-staging
+
+jobs:
+  prepare:
+    name: Build manifest (staging)
+    runs-on: ubuntu-latest
+    outputs:
+      count: ${{ steps.manifest.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+
+      - name: Scan GitHub vs ${{ env.BUCKET }}
+        if: ${{ inputs.rescan }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGING_BUCKET: ${{ env.BUCKET }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+        run: .github/scripts/scan_publish_state.sh .github/batch/repos.json queue.json "$SCAN_STAGE"
+
+      - name: Read staging-scan-latest.json from S3
+        if: ${{ !inputs.rescan }}
+        env:
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours }}
+          KEY: ${{ inputs.s3_prefix }}staging-scan-latest.json
+        run: |
+          if ! modified=$(aws s3api head-object --bucket "$BUCKET" --key "$KEY" --query LastModified --output text 2>&1); then
+            echo "::error::s3://$BUCKET/$KEY is missing or not readable: $modified"
+            echo "::error::Run 'Batch scan (staging)' with upload_to_s3 first, or run this workflow with rescan on."
+            exit 1
+          fi
+          age_h=$(( ( $(date -u +%s) - $(date -u -d "$modified" +%s) ) / 3600 ))
+          if [ "$age_h" -ge "$MAX_AGE_HOURS" ]; then
+            echo "::error::s3://$BUCKET/$KEY was written $age_h h ago (limit $MAX_AGE_HOURS h). Run the staging scan again or use rescan."
+            exit 1
+          fi
+          aws s3 cp "s3://$BUCKET/$KEY" queue.json
+          jq -e '.prerelease.pending' queue.json > /dev/null
+          echo "Using s3://$BUCKET/$KEY (written $modified, $age_h h old)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build manifest from pending
+        id: manifest
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          # Each pending entry becomes one manifest app, plus a -fips app when it uploads fips packages.
+          jq --arg s "$SCAN_STAGE" --arg only "$ONLY" '
+            ($only | split(",") | map(gsub("\\s"; "")) | map(select(. != ""))) as $sel
+            | [ .[$s].pending[]
+                | select(($sel | length) == 0
+                         or (.repo_name | split("/")[1]) as $r | ($sel | index($r)) != null)
+                | ({app_name: .app_name, repo_name: .repo_name, tag: .tag,
+                    schema: .publish_schema, schema_url: .publish_schema_url,
+                    integration: .integration, test_package: .test_package}),
+                  (select(.upload_fips_packages)
+                    | {app_name: .app_name_fips, repo_name: .repo_name, tag: .tag,
+                       schema: .publish_schema_fips, schema_url: .publish_schema_url_fips,
+                       integration: .integration, test_package: false})
+              ]' queue.json > manifest.full.json
+          # The publisher only reads its own fields, keep the test fields in a side file.
+          jq '[.[] | del(.integration, .test_package)]' manifest.full.json > manifest.json
+          count=$(jq length manifest.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Batch manifest (staging, $count apps)"
+            echo
+            echo "| App | Repo | Tag | Schema |"
+            echo "|---|---|---|---|"
+            jq -r '.[] | "| \(.app_name) | \(.repo_name) | \(.tag) | \(.schema) |"' manifest.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat manifest.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-manifest
+          path: |
+            manifest.json
+            manifest.full.json
+            queue.json
+
+  publish:
+    name: Publish (staging)
+    needs: prepare
+    if: ${{ !inputs.dry_run && needs.prepare.outputs.count != '0' }}
+    runs-on: ubuntu-latest-4-cores
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+    steps:
+      - uses: actions/download-artifact@v4.1.3
+        with:
+          name: batch-manifest
+
+      - name: Publish all apps to S3 (staging)
+        uses: newrelic/infrastructure-publish-action/batch@batch-publish
+        with:
+          disable_lock: false
+          run_id: ${{ github.run_id }}
+          apps_manifest_path: manifest.json
+          batch_result_path: batch-result.json
+          access_point_host: "staging"
+          aws_region: ${{ inputs.aws_region }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: nr-downloads-ohai-staging
+          aws_s3_lock_bucket_name: onhost-ci-lock-staging
+          dest_prefix: ${{ inputs.s3_prefix }}
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+
+      - name: Read result
+        id: result
+        if: ${{ always() }}
+        run: |
+          [ -f batch-result.json ] || { echo "status=failed" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "status=$(jq -r .status batch-result.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Batch result: $(jq -r .status batch-result.json)"
+            echo
+            jq -r '"Published: \(.published | length), skipped: \(.skipped | length)"' batch-result.json
+            echo
+            jq -r '.skipped[]? | "- skipped `\(.app_name)`: \(.reason)"' batch-result.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Tests only run for the apps that were really published (not -fips, not test_package: false).
+          jq -c --slurpfile r batch-result.json '
+            [ .[] | select(.test_package == true)
+              | select(.app_name as $a | $r[0].published | map(.app_name) | index($a)) ]
+            | map({app_name, integration, tag, repo_name})' manifest.full.json > to-test.json
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: batch-result
+          path: |
+            batch-result.json
+            to-test.json
+
+  test-matrix:
+    name: Prepare test matrix
+    needs: publish
+    if: ${{ !inputs.dry_run && needs.publish.outputs.status == 'published' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/download-artifact@v4.1.3
+        with:
+          name: batch-result
+      - id: m
+        run: echo "matrix={\"include\":$(jq -c . to-test.json)}" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test ${{ matrix.app_name }}
+    needs: test-matrix
+    if: ${{ needs.test-matrix.outputs.matrix != '{"include":[]}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.test-matrix.outputs.matrix) }}
+    steps:
+      - name: Test package from staging repo
+        uses: newrelic/integrations-pkg-test-action/linux@feat/configurable-repo-prefix
+        with:
+          tag: ${{ matrix.tag }}
+          integration: ${{ matrix.app_name }}
+          packageLocation: repo
+          stagingRepo: true
+          repoPrefix: ${{ inputs.s3_prefix }}
+          upgrade: false
+
+  notify:
+    name: Notify
+    needs: [publish, test]
+    if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4.1.3
+        continue-on-error: true
+        with:
+          name: batch-result
+
+      - name: Build message
+        id: msg
+        run: |
+          if [ -f batch-result.json ]; then
+            text="*Batch publish to staging* ($(jq -r .status batch-result.json)): $(jq '.published|length' batch-result.json) published, $(jq '.skipped|length' batch-result.json) skipped, tests: ${{ needs.test.result }}"
+            skipped=$(jq -r '.skipped[]? | "\n• `\(.app_name)`: \(.reason)"' batch-result.json)
+            text="$text$skipped"
+          else
+            text="*Batch publish to staging* failed before writing a result"
+          fi
+          text="$text\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "text<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$text" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: ${{ steps.msg.outputs.text }}
+
+  refresh-scan:
+    name: Refresh scan file
+    needs: publish
+    if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+
+      - name: Scan again and upload
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGING_BUCKET: ${{ env.BUCKET }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+        run: |
+          .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json "$SCAN_STAGE"
+          ts=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          dest="s3://$BUCKET/$S3_PREFIX"
+          aws s3 cp staging.json "${dest}staging-scan-${ts}.json"
+          aws s3 cp staging.json "${dest}staging-scan-latest.json"
+          echo "Refreshed ${dest}staging-scan-latest.json (pending: $(jq '.prerelease.pending | length' staging.json))" >> "$GITHUB_STEP_SUMMARY"
