@@ -80,8 +80,8 @@ jobs:
           jq --arg s "$SCAN_STAGE" --arg only "$ONLY" '
             ($only | split(",") | map(gsub("\\s"; "")) | map(select(. != ""))) as $sel
             | [ .[$s].pending[]
-                | select(($sel | length) == 0
-                         or (.repo_name | split("/")[1]) as $r | ($sel | index($r)) != null)
+                | (.repo_name | split("/")[1]) as $r
+                | select(($sel | length) == 0 or ($sel | index($r)) != null)
                 | ({app_name: .app_name, repo_name: .repo_name, tag: .tag,
                     schema: .publish_schema, schema_url: .publish_schema_url,
                     integration: .integration, test_package: .test_package}),
