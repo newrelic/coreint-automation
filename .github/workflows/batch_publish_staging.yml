@@ -7,7 +7,7 @@ name: Batch publish to staging
 #   publish: runs the batch publish action once (one lock, each apt/yum repo built once)
 #   test:    installs each published package from the repo (one matrix job per integration)
 #   notify:  one Slack message with the published and skipped apps
-#   refresh-scan: scans again after the publish and uploads a dated staging-scan-<timestamp>.json plus
+#   refresh-scan: scans again after the publish and overwrites
 #            staging-scan-latest.json, so the next run does not see the published apps as pending
 # Apps whose assets or schema are missing are skipped and reported, the rest still publish.
 # Run it with dry_run to only see the manifest. Uses only the STAGING secrets.
@@ -39,7 +39,7 @@ on:
         description: Key prefix the packages are published under
         type: string
         required: false
-        default: testing-pre-releases/v2-batch-test3/infrastructure_agent_v2/
+        default: infrastructure_agent_v2/
       aws_region:
         description: AWS region of the buckets
         type: string
@@ -236,6 +236,20 @@ jobs:
           repoPrefix: ${{ inputs.s3_prefix }}
           upgrade: false
 
+      # One small file per integration, so the notify job can list each result.
+      - name: Record test result
+        if: ${{ always() }}
+        run: |
+          mkdir -p test-result
+          jq -n --arg app "${{ matrix.app_name }}" --arg tag "${{ matrix.tag }}" --arg result "${{ job.status }}" \
+            '{app_name: $app, tag: $tag, result: $result}' > "test-result/${{ matrix.app_name }}.json"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-result-${{ matrix.app_name }}
+          path: test-result/${{ matrix.app_name }}.json
+
   notify:
     name: Notify
     needs: [publish, test]
@@ -247,20 +261,43 @@ jobs:
         with:
           name: batch-result
 
+      - uses: actions/download-artifact@v4.1.3
+        continue-on-error: true
+        with:
+          pattern: test-result-*
+          path: test-results
+          merge-multiple: true
+
       - name: Build message
         id: msg
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TEST_JOB: ${{ needs.test.result }}
         run: |
-          if [ -f batch-result.json ]; then
-            text="*Batch publish to staging* ($(jq -r .status batch-result.json)): $(jq '.published|length' batch-result.json) published, $(jq '.skipped|length' batch-result.json) skipped, tests: ${{ needs.test.result }}"
-            skipped=$(jq -r '.skipped[]? | "\n• `\(.app_name)`: \(.reason)"' batch-result.json)
-            text="$text$skipped"
-          else
-            text="*Batch publish to staging* failed before writing a result"
-          fi
-          text="$text\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "text<<EOF" >> "$GITHUB_OUTPUT"
-          echo -e "$text" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            if [ ! -f batch-result.json ]; then
+              echo "*Batch publish to staging*: failed before writing a result"
+            else
+              echo "*Batch publish to staging*: $(jq -r .status batch-result.json)"
+              echo
+              # to-test.json lists the apps that are installed and checked after the publish
+              tested=$(jq -c '[.[].app_name]' to-test.json 2>/dev/null || echo '[]')
+              jq -r --argjson tested "$tested" '.published[]? | "• `\(.app_name)` \(.tag): published :white_check_mark:" + (if (.app_name as $a | $tested | index($a)) then "" else " (not tested)" end)' batch-result.json
+              jq -r '.skipped[]? | "• `\(.app_name)`: skipped, \(.reason)"' batch-result.json
+              jq -r '.error // empty | "Error: \(.)"' batch-result.json
+              echo
+              echo "*Install tests*"
+              if ls test-results/*.json > /dev/null 2>&1; then
+                jq -rs 'sort_by(.app_name)[] | "• `\(.app_name)` \(.tag): " + (if .result == "success" then ":white_check_mark: success" elif .result == "cancelled" then ":warning: cancelled" else ":x: failed" end)' test-results/*.json
+              else
+                echo "no tests ran (test job: $TEST_JOB)"
+              fi
+            fi
+            echo
+            echo "$RUN_URL"
+          } > message.txt
+          cat message.txt
+          { echo "text<<SLACK_EOF"; cat message.txt; echo "SLACK_EOF"; } >> "$GITHUB_OUTPUT"
 
       - uses: archive/github-actions-slack@master
         with:
@@ -293,8 +330,6 @@ jobs:
           S3_PREFIX: ${{ inputs.s3_prefix }}
         run: |
           .github/scripts/scan_publish_state.sh .github/batch/repos.json staging.json "$SCAN_STAGE"
-          ts=$(date -u +%Y-%m-%dT%H-%M-%SZ)
-          dest="s3://$BUCKET/$S3_PREFIX"
-          aws s3 cp staging.json "${dest}staging-scan-${ts}.json"
-          aws s3 cp staging.json "${dest}staging-scan-latest.json"
-          echo "Refreshed ${dest}staging-scan-latest.json (pending: $(jq '.prerelease.pending | length' staging.json))" >> "$GITHUB_STEP_SUMMARY"
+          dest="s3://$BUCKET/${S3_PREFIX}staging-scan-latest.json"
+          aws s3 cp staging.json "$dest"
+          echo "Refreshed $dest (pending: $(jq '.prerelease.pending | length' staging.json))" >> "$GITHUB_STEP_SUMMARY"
