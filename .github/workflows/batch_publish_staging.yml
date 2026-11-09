@@ -35,6 +35,11 @@ on:
         type: boolean
         required: false
         default: true
+      skip_apt:
+        description: Do not publish the apt repositories (they are left as they are). Only the files and the yum/zypp repositories are published.
+        type: boolean
+        required: false
+        default: false
       s3_prefix:
         description: Key prefix the packages are published under
         type: string
@@ -173,6 +178,7 @@ jobs:
           aws_s3_bucket_name: nr-downloads-ohai-staging
           aws_s3_lock_bucket_name: onhost-ci-lock-staging
           dest_prefix: ${{ inputs.s3_prefix }}
+          skip_apt: ${{ inputs.skip_apt }}
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
 
@@ -186,6 +192,7 @@ jobs:
             echo "### Batch result: $(jq -r .status batch-result.json)"
             echo
             jq -r '"Published: \(.published | length), skipped: \(.skipped | length)"' batch-result.json
+            [ "${{ inputs.skip_apt }}" = "true" ] && echo && echo "**apt was skipped (skip_apt): the apt repositories were not updated**"
             echo
             jq -r '.skipped[]? | "- skipped `\(.app_name)`: \(.reason)"' batch-result.json
           } >> "$GITHUB_STEP_SUMMARY"
@@ -273,12 +280,14 @@ jobs:
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TEST_JOB: ${{ needs.test.result }}
+          SKIP_APT: ${{ inputs.skip_apt }}
         run: |
           {
             if [ ! -f batch-result.json ]; then
               echo "*Batch publish to staging*: failed before writing a result"
             else
               echo "*Batch publish to staging*: $(jq -r .status batch-result.json)"
+              [ "$SKIP_APT" = "true" ] && echo ":warning: apt was skipped, the apt repositories were not updated"
               echo
               # to-test.json lists the apps that are installed and checked after the publish
               tested=$(jq -c '[.[].app_name]' to-test.json 2>/dev/null || echo '[]')
