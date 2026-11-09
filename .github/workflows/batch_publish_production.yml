@@ -124,7 +124,7 @@ jobs:
           name: batch-manifest
 
       - name: Publish all apps to S3 (production)
-        uses: newrelic/infrastructure-publish-action/batch@batch-publish
+        uses: newrelic/infrastructure-publish-action/batch@v2
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
@@ -193,7 +193,7 @@ jobs:
       matrix: ${{ fromJSON(needs.test-matrix.outputs.matrix) }}
     steps:
       - name: Test package from production repo
-        uses: newrelic/integrations-pkg-test-action/linux@feat/configurable-repo-prefix
+        uses: newrelic/integrations-pkg-test-action/linux@v2
         with:
           tag: ${{ matrix.tag }}
           integration: ${{ matrix.app_name }}
