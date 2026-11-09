@@ -158,7 +158,7 @@ jobs:
           name: batch-manifest
 
       - name: Publish all apps to S3 (staging)
-        uses: newrelic/infrastructure-publish-action/batch@v2
+        uses: newrelic/infrastructure-publish-action/batch@batch-skip-stat
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
