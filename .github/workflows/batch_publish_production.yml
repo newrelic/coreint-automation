@@ -61,6 +61,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_PRODUCTION }}
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          role-skip-session-tagging: true
 
       - name: Scan GitHub vs ${{ env.BUCKET }}
         env:
@@ -79,8 +80,8 @@ jobs:
           jq --arg s "$SCAN_STAGE" --arg only "$ONLY" '
             ($only | split(",") | map(gsub("\\s"; "")) | map(select(. != ""))) as $sel
             | [ .[$s].pending[]
-                | select(($sel | length) == 0
-                         or (.repo_name | split("/")[1]) as $r | ($sel | index($r)) != null)
+                | (.repo_name | split("/")[1]) as $r
+                | select(($sel | length) == 0 or ($sel | index($r)) != null)
                 | ({app_name: .app_name, repo_name: .repo_name, tag: .tag,
                     schema: .publish_schema, schema_url: .publish_schema_url,
                     integration: .integration, test_package: .test_package}),
@@ -123,7 +124,7 @@ jobs:
           name: batch-manifest
 
       - name: Publish all apps to S3 (production)
-        uses: newrelic/infrastructure-publish-action/batch@batch-publish
+        uses: newrelic/infrastructure-publish-action/batch@v2
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
@@ -192,7 +193,7 @@ jobs:
       matrix: ${{ fromJSON(needs.test-matrix.outputs.matrix) }}
     steps:
       - name: Test package from production repo
-        uses: newrelic/integrations-pkg-test-action/linux@feat/configurable-repo-prefix
+        uses: newrelic/integrations-pkg-test-action/linux@v2
         with:
           tag: ${{ matrix.tag }}
           integration: ${{ matrix.app_name }}

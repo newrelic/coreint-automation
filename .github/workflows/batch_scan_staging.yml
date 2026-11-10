@@ -3,7 +3,7 @@ name: Batch scan (staging)
 # Compares the open pre-releases of every opted-in repo with what is in nr-downloads-ohai-staging and marks it pending or done.
 # An entry is "done" when its linux/amd64 tarball is already under the prefix, otherwise "pending".
 # The check only reads S3 (STAGING credentials). See .github/scripts/scan_publish_state.sh.
-# The result is staging.json, uploaded as the scan-staging artifact; with upload_to_s3 it is also copied to <bucket>/<s3_prefix> as staging-scan-<utc timestamp>.json and staging-scan-latest.json.
+# The result is staging.json, uploaded as the scan-staging artifact; with upload_to_s3 it is also copied to <bucket>/<s3_prefix>staging-scan-latest.json, overwriting the previous scan.
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
         description: Key prefix the packages are published under in the bucket
         type: string
         required: false
-        default: testing-pre-releases/v2-batch-test3/infrastructure_agent_v2/
+        default: infrastructure_agent_v2/
       aws_region:
         description: AWS region of the bucket
         type: string
@@ -52,6 +52,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
           role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          role-skip-session-tagging: true
 
       - name: Compare GitHub open pre-releases with ${{ inputs.bucket }}
         env:
@@ -78,9 +79,6 @@ jobs:
       - name: Upload staging.json to S3
         if: ${{ inputs.upload_to_s3 }}
         run: |
-          # A dated copy that is never overwritten, plus a stable name for the latest scan.
-          ts=$(date -u +%Y-%m-%dT%H-%M-%SZ)
-          dest="s3://${{ inputs.bucket }}/${{ inputs.s3_prefix }}"
-          aws s3 cp staging.json "${dest}staging-scan-${ts}.json"
-          aws s3 cp staging.json "${dest}staging-scan-latest.json"
-          echo "Uploaded ${dest}staging-scan-${ts}.json and staging-scan-latest.json" >> "$GITHUB_STEP_SUMMARY"
+          dest="s3://${{ inputs.bucket }}/${{ inputs.s3_prefix }}staging-scan-latest.json"
+          aws s3 cp staging.json "$dest"
+          echo "Uploaded $dest (overwrites the previous scan)" >> "$GITHUB_STEP_SUMMARY"
