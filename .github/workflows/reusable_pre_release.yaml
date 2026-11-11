@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-latest-4-cores
     steps:
       - name: Publish to S3 action
-        uses: newrelic/infrastructure-publish-action@v1
+        uses: newrelic/infrastructure-publish-action@v2
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
@@ -240,7 +240,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
       - name: Publish to S3 action - fips
         if: ${{ inputs.upload_fips_packages }}
-        uses: newrelic/infrastructure-publish-action@v1
+        uses: newrelic/infrastructure-publish-action@v2
         with:
           disable_lock: false
           run_id: ${{ github.run_id }}
