@@ -82,7 +82,7 @@ env:
 jobs:
   test-nix:
     if: ${{ inputs.run_nix_unit_tests }}
-    uses: newrelic/coreint-automation/.github/workflows/_test_nix.yaml@v3
+    uses: newrelic/coreint-automation/.github/workflows/_test_nix.yaml@v4
 
   test-windows:
     if: ${{ inputs.run_windows_unit_tests }}
