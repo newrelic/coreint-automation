@@ -150,7 +150,7 @@ jobs:
           binaries_path: "./dist"
       - name: Test package installability
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@v2
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
@@ -192,7 +192,7 @@ jobs:
           build\windows\package_msi.ps1 -integration "$env:INTEGRATION" -arch "${{ matrix.goarch }}" -tag "$env:TAG" -pfx_passphrase "$env:PFX_PASSPHRASE" -pfx_certificate_description "New Relic"
       - name: Test win packages installation
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/windows@v1
+        uses: newrelic/integrations-pkg-test-action/windows@v2
         with:
           tag: ${{ inputs.tag }}
           integration: nri-${{ inputs.integration }}
@@ -263,7 +263,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
       - name: Test package from Staging repo
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@v2
         with:
           tag: ${{ inputs.tag }}
           integration: 'nri-${{ inputs.integration }}'
