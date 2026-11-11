@@ -42,7 +42,7 @@ jobs:
     name: Read staging, mark open pre-releases
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (staging)
         uses: aws-actions/configure-aws-credentials@v4
