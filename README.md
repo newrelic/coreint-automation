@@ -35,6 +35,12 @@ Automatic pre-releases executes a GET request to it and fails if the status resp
 
 The block mechanism can be manually set by manually executing the workflow [Block automatic releases](.github/workflows/block.yaml) and unset by the workflow [Unblock automatic releases](.github/workflows/unblock.yaml) from the Actions panel.
 
+### Batch integrations
+
+The integrations that are published to S3 with the batch workflows (`batch_scan_*`, `batch_publish_*`) have their own block endpoint, the file `automatic_release_enable_batch` of the same page. It is set and unset by the workflows [Block automatic releases (batch)](.github/workflows/block_batch.yaml) and [Unblock automatic releases (batch)](.github/workflows/unblock_batch.yaml), and it does not depend on the global one. Without the file, the batch integrations create no pre-release and promote none.
+
+They call [reusable_release_automation_batch.yaml](.github/workflows/reusable_release_automation_batch.yaml) in `automated_release.yaml` and [reusable_on_release_batch.yaml](.github/workflows/reusable_on_release_batch.yaml) in `on_release.yaml`. Releasing only changes GitHub; the packages are sent to S3 by running `Batch scan (production)` and `Batch publish (production)` manually.
+
 ## Renovate shared config
 
 [renovate-base.json5](./renovate-base.json5) defines a base renovate configuration to be used in all core-int repositories.

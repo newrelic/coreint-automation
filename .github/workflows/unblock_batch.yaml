@@ -1,0 +1,34 @@
+# Switch of the integrations that publish to S3 with the batch workflows (batch_publish_*). It is separate from
+# the global switch of block.yaml / unblock.yaml. Without the file the batch repos do not create releases.
+name: Unblock automatic releases (batch)
+
+on:
+  workflow_dispatch:
+
+env:
+  UNBLOCK_FILE_NAME: automatic_release_enable_batch
+  BRANCH: gh-pages
+
+jobs:
+  unblock:
+    name: Enable Automatic Releases (batch)
+    runs-on: ubuntu-latest
+    permissions:
+      # Allows github.token to push commit
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+      - name: Create unblock file
+        run: echo "Removing/renaming this file will block automatic releases." > ${{ env.UNBLOCK_FILE_NAME }}
+      - name: Configure Git
+        run: |
+          git config user.name newrelic-coreint-bot
+          git config user.email coreint-dev@newrelic.com
+      - name: Commit file creation
+        run: |
+          git add -A
+          git diff --cached --quiet && echo "Nothing to change" && exit 0
+          git commit -m "Allow automatic releases (batch)"
+          git push origin HEAD:${{ env.BRANCH }}
