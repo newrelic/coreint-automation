@@ -41,7 +41,7 @@ The integrations that are published to S3 with the batch workflows (`batch_scan_
 
 They call [reusable_release_automation_batch.yaml](.github/workflows/reusable_release_automation_batch.yaml) in `automated_release.yaml` and [reusable_on_release_batch.yaml](.github/workflows/reusable_on_release_batch.yaml) in `on_release.yaml`. Releasing only changes GitHub; the packages are sent to S3 by running `Batch scan (production)` and `Batch publish (production)` manually.
 
-The batch integrations keep their existing workflows and add `batch_automated_release.yaml`, `batch_on_prerelease.yaml` and `batch_on_release.yaml`. Both sets listen to the same events, so [Switch release flow (batch / existing)](.github/workflows/batch_switch.yaml) enables one and disables the other (`mode`: `batch` or `existing`) and sets the batch block endpoint accordingly. It needs a `COREINT_BOT_TOKEN` with the `actions: write` permission on the repositories.
+The batch integrations keep their existing workflows and add `batch_automated_release.yaml`, `batch_on_prerelease.yaml` and `batch_on_release.yaml`. The global switch controls the existing flow and the batch switch the batch one.
 
 ## Renovate shared config
 
