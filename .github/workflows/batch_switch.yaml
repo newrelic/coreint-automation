@@ -90,4 +90,5 @@ jobs:
           git push origin HEAD:${{ env.BRANCH }}
 
       - name: Summary
-        run: echo "Release flow of ${{ inputs.repos }}: **${{ inputs.mode }}**" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Release flow of ${{ inputs.repos }} is now **${{ inputs.mode }}**" >> "$GITHUB_STEP_SUMMARY"
