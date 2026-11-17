@@ -1,0 +1,38 @@
+name: On release (batch)
+
+# Counterpart of reusable_on_release.yaml for the integrations published with the batch workflows.
+# It does not publish anything: the release assets are sent to S3 by the 'Batch scan (production)' and
+# 'Batch publish (production)' workflows of this repository, run manually.
+#
+# Usage from the caller workflow:
+# jobs:
+#   release:
+#     uses: newrelic/coreint-automation/.github/workflows/reusable_on_release_batch.yaml@v5
+#     with:
+#       tag: ${{ github.event.release.tag_name }}
+#     secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag that has been released
+        type: string
+        required: true
+    secrets:
+      COREINT_SLACK_TOKEN:
+        required: true
+      COREINT_SLACK_CHANNEL:
+        required: true
+
+jobs:
+  notify:
+    name: Notify release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify release on GitHub
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
+          slack-text: "📦 `${{ github.event.repository.full_name }}`: ${{ inputs.tag }} is released on GitHub, the S3 publish is pending the batch run. ${{ github.server_url }}/${{ github.event.repository.full_name }}/releases/tag/${{ inputs.tag }}"
