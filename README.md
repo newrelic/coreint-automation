@@ -41,7 +41,7 @@ The integrations that are published to S3 with the batch workflows (`batch_scan_
 
 They call [reusable_release_automation_batch.yaml](.github/workflows/reusable_release_automation_batch.yaml) in `automated_release.yaml` and [reusable_on_release_batch.yaml](.github/workflows/reusable_on_release_batch.yaml) in `on_release.yaml`. Releasing only changes GitHub; the packages are sent to S3 by running `Batch scan (production)` and `Batch publish (production)` manually.
 
-The batch integrations keep their existing workflows and add `batch_automated_release.yaml`, `batch_on_prerelease.yaml` and `batch_on_release.yaml`. The global switch controls the existing flow and the batch switch the batch one.
+The batch integrations keep their existing workflows and add `batch_automated_release.yaml`, `batch_on_prerelease.yaml` and `batch_on_release.yaml`. The global switch controls the existing flow and the batch switch the batch one. The pre-releases created by the batch flow have the marker `<!-- release-flow=batch -->` in their notes: the `batch_*` release workflows of the integrations run only for releases with the marker, and the existing `on_prerelease.yaml` / `on_release.yaml` skip them.
 
 ## Renovate shared config
 

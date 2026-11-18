@@ -124,7 +124,7 @@ jobs:
   trigger_prerelease:
     if: always()
     needs: promote_prerelease
-    uses: ./.github/workflows/reusable_trigger_prerelease.yaml
+    uses: ./.github/workflows/reusable_trigger_prerelease_batch.yaml
     secrets:
       bot_token: ${{ secrets.COREINT_BOT_TOKEN }}
       slack_channel: ${{ secrets.COREINT_SLACK_CHANNEL }}
