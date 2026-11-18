@@ -118,9 +118,10 @@ jobs:
           GH_TOKEN: "${{ secrets.bot_token }}"
         run: |
           # marker that tells the release workflows this release belongs to the batch flow
-          echo >> CHANGELOG.partial.md
-          echo '<!-- release-flow=batch -->' >> CHANGELOG.partial.md
-          gh release create ${{ steps.release-data.outputs.next-version }} --title "${{ steps.release-data.outputs.next-version }} (artifacts-pending)"  --target $(git rev-parse HEAD) --notes-file CHANGELOG.partial.md --prerelease
+          # CHANGELOG.partial.md is created by the release-toolkit action as another user and cannot be appended to, so
+          # the notes with the marker are written to a new file
+          { cat CHANGELOG.partial.md; echo; echo '<!-- release-flow=batch -->'; } > "$RUNNER_TEMP/release-notes.md"
+          gh release create ${{ steps.release-data.outputs.next-version }} --title "${{ steps.release-data.outputs.next-version }} (artifacts-pending)"  --target $(git rev-parse HEAD) --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease
       - name: Notify failure via Slack
         if: ${{ failure() }}
         uses: archive/github-actions-slack@master
