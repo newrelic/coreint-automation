@@ -1,6 +1,6 @@
 name: Trigger pre-release shared workflow (batch)
 
-#  Same as reusable_trigger_prerelease.yaml, but the release notes get the marker 'release-flow: batch' (an HTML comment,
+#  Same as reusable_trigger_prerelease.yaml, but the release notes get the marker 'release-flow=batch' (an HTML comment,
 #  not shown on GitHub). The batch workflows only run for releases with the marker, and the existing release workflows
 #  skip the releases that have it.
 #
@@ -119,7 +119,7 @@ jobs:
         run: |
           # marker that tells the release workflows this release belongs to the batch flow
           echo >> CHANGELOG.partial.md
-          echo '<!-- release-flow: batch -->' >> CHANGELOG.partial.md
+          echo '<!-- release-flow=batch -->' >> CHANGELOG.partial.md
           gh release create ${{ steps.release-data.outputs.next-version }} --title "${{ steps.release-data.outputs.next-version }} (artifacts-pending)"  --target $(git rev-parse HEAD) --notes-file CHANGELOG.partial.md --prerelease
       - name: Notify failure via Slack
         if: ${{ failure() }}
