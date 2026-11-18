@@ -5,6 +5,7 @@
 #   prerelease.done     open pre-release already in the staging bucket
 #   release.pending     latest release, not in the prod bucket
 #   release.done        latest release already in the prod bucket
+# Releases and pre-releases titled "Bad release" (case insensitive) are ignored.
 # "In the bucket" = the linux tarball <app>_linux_<version>_<arch>.tar.gz exists under
 # <prefix>binaries/linux/<arch>/ (every publish schema uploads it; arch is amd64, noarch for nrjmx).
 # For repos that upload fips packages the <app>-fips tarball must be there too, otherwise the entry
@@ -106,6 +107,12 @@ while IFS= read -r entry; do
     echo "::warning::${repo}: unable to fetch releases, skipping"
     continue
   }
+
+  # A release whose title says "Bad release" (for example "v2.13.0 - Bad release ⚠️") is not uploaded: it is ignored
+  # as if it did not exist, so the latest good release is the one compared with S3.
+  bad=$(jq -r '[.[] | select((.name // "") | test("bad release"; "i")) | .tag_name] | join(", ")' <<<"$releases")
+  [ -n "$bad" ] && echo "${repo}: ignoring bad release(s): ${bad}"
+  releases=$(jq -c '[.[] | select(((.name // "") | test("bad release"; "i")) | not)]' <<<"$releases")
 
   rel=$(jq -c '[.[] | select(.draft==false and .prerelease==false)][0] // empty' <<<"$releases")
   pre=$(jq -c --arg rel "$(jq -r '.created_at // ""' <<<"${rel:-null}")" \
