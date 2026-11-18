@@ -63,6 +63,9 @@ on:
       aws_access_key_secret:
         description: 'AWS key secret'
         required: false
+      aws_role_to_assume:
+        description: 'Optional AWS role ARN to assume using the provided keys'
+        required: false
       slack_channel:
         required: true
       slack_token:
@@ -176,6 +179,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_access_key_secret }}
+          role-to-assume: ${{ secrets.aws_role_to_assume }}
           aws-region: us-east-1
             
       - name: Run image release commands
