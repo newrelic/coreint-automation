@@ -1,0 +1,62 @@
+name: Batch clear artifacts-pending
+
+# Run it after the batch publish (staging). For every opted-in repo (.github/batch/repos.json) it looks at the open
+# pre-releases titled "<tag> (artifacts-pending)" and, when their packages are in the staging bucket, renames them
+# to "<tag>" so they can be promoted to a release. Pre-releases that are not in S3 yet keep the title.
+# Only the title of the GitHub pre-release changes. See .github/scripts/clear_artifacts_pending.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only list the pre-releases that would be renamed
+        type: boolean
+        required: false
+        default: false
+      bucket:
+        description: Bucket the pre-releases are checked against
+        type: string
+        required: false
+        default: nr-downloads-ohai-staging
+      s3_prefix:
+        description: Key prefix the packages are published under in the bucket
+        type: string
+        required: false
+        default: infrastructure_agent_v2/
+      aws_region:
+        description: AWS region of the bucket
+        type: string
+        required: false
+        default: us-east-1
+
+concurrency:
+  group: batch-clear-artifacts-pending
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  clear:
+    name: Rename the pre-releases that are in S3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          role-to-assume: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          role-session-name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          role-skip-session-tagging: true
+
+      - name: Remove (artifacts-pending) from the titles
+        env:
+          GH_TOKEN: ${{ secrets.COREINT_BOT_TOKEN }}
+          STAGING_BUCKET: ${{ inputs.bucket }}
+          S3_PREFIX: ${{ inputs.s3_prefix }}
+          DRY_RUN: ${{ inputs.dry_run && 'dry-run' || '' }}
+        run: .github/scripts/clear_artifacts_pending.sh .github/batch/repos.json "$DRY_RUN"
