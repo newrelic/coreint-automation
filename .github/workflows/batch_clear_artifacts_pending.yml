@@ -1,8 +1,8 @@
 name: Batch clear artifacts-pending
 
-# Run it after the batch publish (staging). For every opted-in repo (.github/batch/repos.json) it looks at the open
-# pre-releases titled "<tag> (artifacts-pending)" and, when their packages are in the staging bucket, renames them
-# to "<tag>" so they can be promoted to a release. Pre-releases that are not in S3 yet keep the title.
+# Run it after the batch publish (staging). For every opted-in repo (.github/batch/repos.json) it looks at the latest
+# open pre-release only and, when it is titled "<tag> (artifacts-pending)" and its packages are in the staging bucket,
+# renames it to "<tag>" so it can be promoted to a release. A pre-release that is not in S3 yet keeps the title.
 # Only the title of the GitHub pre-release changes. See .github/scripts/clear_artifacts_pending.sh.
 
 on:
@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   clear:
-    name: Rename the pre-releases that are in S3
+    name: Rename the latest pre-releases that are in S3
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

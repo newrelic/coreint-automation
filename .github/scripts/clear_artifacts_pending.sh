@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Removes the " (artifacts-pending)" suffix from the title of the open pre-releases that are already in S3.
-# For every opted-in repo it takes the pre-releases (not drafts) whose title ends with "(artifacts-pending)",
-# and when the linux tarball of the tag is in the staging bucket it renames the pre-release to its tag, which
-# makes it promotable. "In the bucket" is the same check as scan_publish_state.sh: the main tarball, and the
-# fips tarball too for the repos that upload fips packages. Pre-releases that are not there yet are left as they are.
+# Removes the " (artifacts-pending)" suffix from the title of the latest open pre-release when it is already in S3.
+# For every opted-in repo it takes the latest open pre-release (not a draft, newer than the latest release, "Bad release"
+# ignored, older pre-releases are not looked at). When its title ends with "(artifacts-pending)" and its linux tarball is
+# in the staging bucket, it renames the pre-release to its tag, which makes it promotable. "In the bucket" is the same
+# check as scan_publish_state.sh: the main tarball, and the fips tarball too for the repos that upload fips packages.
+# A pre-release that is not there yet is left as it is.
 #
 # usage: clear_artifacts_pending.sh <repos.json> [dry-run]
 # env:   GH_TOKEN        token that can edit the releases of the repos (COREINT_BOT_TOKEN)
@@ -67,8 +68,13 @@ while IFS= read -r entry; do
     fi
     echo "${ORG}/${repo}@${tag}: ${state} (main: ${main}, fips: ${fips_check})"
     rows+="| ${ORG}/${repo} | ${tag} | ${state} | ${main} | ${fips_check} |"$'\n'
-  done < <(jq -r --arg s "$SUFFIX" \
-    '.[] | select(.draft==false and .prerelease==true and ((.name // "") | endswith($s))) | .tag_name' <<<"$releases")
+  done < <(jq -r --arg s "$SUFFIX" '
+    # same pick as scan_publish_state.sh: the latest pre-release, newer than the latest release; older ones are not looked at
+    [.[] | select(((.name // "") | test("bad release"; "i")) | not)] as $all
+    | ([$all[] | select(.draft==false and .prerelease==false)][0].created_at // "") as $rel
+    | [$all[] | select(.draft==false and .prerelease==true and .created_at > $rel)][0]
+    | select(. != null and ((.name // "") | endswith($s)))
+    | .tag_name' <<<"$releases")
 done < <(jq -c '.repos[]' "$CONFIG")
 
 echo "cleared=${cleared} waiting=${waiting} unknown=${unknown} failed=${failed}${DRY_RUN:+ (dry run)}"
