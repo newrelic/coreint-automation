@@ -43,6 +43,8 @@ They call [reusable_release_automation_batch.yaml](.github/workflows/reusable_re
 
 The batch integrations keep their existing workflows and add `batch_automated_release.yaml`, `batch_on_prerelease.yaml` and `batch_on_release.yaml`. The global switch controls the existing flow and the batch switch the batch one. The pre-releases created by the batch flow have the marker `<!-- release-flow=batch -->` in their notes: the `batch_*` release workflows of the integrations run only for releases with the marker, and the existing `on_prerelease.yaml` / `on_release.yaml` skip them.
 
+The pre-releases of the batch flow are titled `<tag> (artifacts-pending)` and cannot be promoted until the title is the tag. After `Batch publish (staging)` has finished, run [Batch clear artifacts-pending](.github/workflows/batch_clear_artifacts_pending.yml): for every repo in `.github/batch/repos.json` it renames the open pre-releases with that suffix whose tarballs (and fips tarballs, where the repo has them) are in the staging bucket, and leaves the others as they are. It only changes the title; use the `dry_run` input to see what would be renamed first.
+
 ## Renovate shared config
 
 [renovate-base.json5](./renovate-base.json5) defines a base renovate configuration to be used in all core-int repositories.
