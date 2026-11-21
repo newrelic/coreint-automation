@@ -71,7 +71,7 @@ jobs:
             jq -r '.prerelease | to_entries[] | .key as $st | .value[] | "| \($st) | \(.repo_name) | \(.tag) | \(.s3_check) |"' staging.json
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: scan-staging
           path: staging.json
