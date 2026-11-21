@@ -125,7 +125,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
       - name: Test package from prod repo
         if: ${{ inputs.test_package }}
-        uses: newrelic/integrations-pkg-test-action/linux@v1
+        uses: newrelic/integrations-pkg-test-action/linux@v2
         with:
           tag: ${{ inputs.tag }}
           integration: 'nri-${{ inputs.integration }}'
