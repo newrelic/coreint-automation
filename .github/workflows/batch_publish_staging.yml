@@ -65,7 +65,7 @@ jobs:
     outputs:
       count: ${{ steps.manifest.outputs.count }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (staging)
         uses: aws-actions/configure-aws-credentials@v4
@@ -311,7 +311,7 @@ jobs:
     if: ${{ always() && !inputs.dry_run && needs.publish.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (staging)
         uses: aws-actions/configure-aws-credentials@v4
