@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (staging)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ inputs.aws_region }}
           aws-access-key-id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
