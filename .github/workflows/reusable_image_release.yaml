@@ -63,6 +63,12 @@ on:
       aws_access_key_secret:
         description: 'AWS key secret'
         required: false
+      aws_role_arn:
+        description: 'Optional AWS role ARN to assume using the provided keys (OHAI_AWS_ROLE_ARN_PRODUCTION)'
+        required: false
+      aws_role_session_name:
+        description: 'Optional session name for the assumed AWS role (OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION)'
+        required: false
       slack_channel:
         required: true
       slack_token:
@@ -176,6 +182,9 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_access_key_secret }}
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          role-session-name: ${{ secrets.aws_role_session_name }}
+          role-skip-session-tagging: true
           aws-region: us-east-1
             
       - name: Run image release commands
